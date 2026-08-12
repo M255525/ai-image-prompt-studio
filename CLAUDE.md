@@ -23,7 +23,8 @@
 - `Code.gs` — 部署到 Google Sheet 的 Apps Script 原始碼：`doPost` 只做序號驗證＋首次自動啟用，`doGet` 供部署後測試。`VALID_AMOUNT = 12`（月）。這不是這個資料夾裡的檔案在跑，是使用者手動複製貼到 Google Sheet 的「擴充功能 → Apps Script」編輯器裡部署成 Web App，取得網址後回填到 `index.html` 的 `LICENSE_CHECK_URL`。部署步驟見 `SETUP-授權伺服器設定.md`。
 - **這支後端只做序號驗證，不代理任何付費 API**（本工具的 LLM 串接是 BYOK，前端直連使用者自己的服務商 API，跟序號系統無關），也**不處理跑馬燈**（見下）。
 - **綁定的 Google Sheet 是使用者指定沿用的既有表**（非本專案新開）：<https://docs.google.com/spreadsheets/d/1lwvqRNqpF5Z11jiYhS0Eo1_PRsN789N01zjPEgSarYk/edit>。原始欄位為「任務／優先順序／負責人／狀態／序號／開始日期／結束日期／交件／附註」（含一筆測試列 `xyz-9991`），比純驗證表多了任務追蹤用欄位；`Code.gs` 依表頭文字比對「序號」「開始日期」「結束日期」三個欄位，其餘欄位不影響驗證邏輯，可保留給使用者自己的任務追蹤用途。
-- **尚未部署（`LICENSE_CHECK_URL` 目前是空字串）**：需依 `SETUP-授權伺服器設定.md` 由使用者手動在 Apps Script 編輯器貼上 `Code.gs` 並部署為 Web App，取得網址後回填。部署前頁面會 fail-closed 卡在鎖定畫面並顯示「尚未設定授權伺服器網址」。
+- **已完成部署（2026-08-12）**。`index.html` 的 `LICENSE_CHECK_URL` 已填入實際部署網址：`https://script.google.com/macros/s/AKfycbwRQJLIQrKj99TUB3oxch1yuytQI32HD0B9eF965Pf3krYfEMMmrwMRLFvL76tPmdDO/exec`。`doGet`／`doPost` 皆已用 curl／Node `fetch()` 驗證正常（假序號正確回傳 `serial_not_found`；Sheet 上的測試序號 `mark0131` 正確回傳 `valid:true` 及對應的啟用/到期日期）。
+- **部署過程**：複製貼上 `Code.gs` 到 Apps Script 編輯器容易出現語法錯誤是已知踩坑，這次改用 `clasp login`（使用者自行在獨立終端機完成 OAuth，Claude 無法代勞）→ 使用者手動開啟 Sheet 的「擴充功能 → Apps Script」建立綁定腳本專案並提供 Script ID → `clasp clone` → 覆蓋 `Code.js` → `clasp push --force` 一次成功，跳過複製貼上；部署為 Web App（新增部署，非更新既有部署，因為這是這個腳本專案第一次真正部署成 Web App）仍由使用者手動完成（涉及 OAuth 同意畫面，無法自動化）。**驗證 `doPost` 時遇到的坑**：用單一 Node 腳本先後打 GET 再 POST，第二次 POST 的結果被污染成回傳了 `doGet` 的健康檢查訊息——不是部署壞了，是同一 Node 行程裡連續 `fetch()` 呼叫時的連線/重導向快取造成的假象；改成各自獨立的 Node 呼叫、且用 `redirect:'manual'` 先確認第一段 302 沒問題，再手動 `fetch()` 那組不重複使用的 `user_content_key` echo 網址，就能穩定拿到正確結果。
 
 ## 頂部共用跑馬燈
 
@@ -46,7 +47,7 @@ python -m PyInstaller --onefile --console --name ImagePromptStudio `
   launcher.py
 ```
 
-已建置（2026-08-12），用 `python launcher.py` 直接測試過 `/index.html`／`/manual.html` 皆回應 200；exe 本身因 Windows Smart App Control 對新編譯未簽章二進位檔的已知延遲封鎖（見全域記憶 `windows-smart-app-control-dll-blocks`），尚未實機雙擊驗證。exe 未簽章，首次執行可能遇 SmartScreen 或 Smart App Control 警告；若被硬擋，可比照 `Prompt_Eng/啟動提示詞控制台.bat` 的做法，改用已簽章的系統 `python.exe` 執行 `launcher.py` 繞過。測試 exe 時注意：PyInstaller onefile 會有父子兩個程序，需要 `taskkill //IM ImagePromptStudio.exe //F` 才殺得乾淨（**不要用不帶 `//IM <名稱>` 的 `taskkill //IM python.exe //F`，會誤殺系統上所有 python.exe 行程**）。
+已建置兩次（2026-08-12：首次建置＋回填 `LICENSE_CHECK_URL` 後重建），用 `python launcher.py` 直接測試過 `/index.html`／`/manual.html` 皆回應 200；exe 本身因 Windows Smart App Control 對新編譯未簽章二進位檔的已知延遲封鎖（見全域記憶 `windows-smart-app-control-dll-blocks`），尚未實機雙擊驗證。exe 未簽章，首次執行可能遇 SmartScreen 或 Smart App Control 警告；若被硬擋，可比照 `Prompt_Eng/啟動提示詞控制台.bat` 的做法，改用已簽章的系統 `python.exe` 執行 `launcher.py` 繞過。測試 exe 時注意：PyInstaller onefile 會有父子兩個程序，需要 `taskkill //IM ImagePromptStudio.exe //F` 才殺得乾淨（**不要用不帶 `//IM <名稱>` 的 `taskkill //IM python.exe //F`，會誤殺系統上所有 python.exe 行程**）。
 
 ## 指令
 
@@ -65,6 +66,5 @@ node --check _check.js
 
 ## 本次未做（後續視需要再處理）
 
-- `Code.gs` 尚未由使用者部署到 Apps Script，`LICENSE_CHECK_URL` 待回填。
 - exe 尚未實機雙擊驗證（Smart App Control 延遲封鎖，見上）。
-- 根目錄 `專案目錄.docx` 尚未加入本專案的列（若未同步請檢查）。
+- 根目錄 `專案目錄.docx` 尚未加入本專案的列（建立時檔案被 Word 開啟中鎖定無法寫入；同時發現 `ai-prompt-generator` 也漏加，需一併補上）。
