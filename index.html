@@ -20,6 +20,8 @@
     --accent-glow:rgba(236,72,153,0.5);
     --teal:#2dd4bf;
     --teal-soft:rgba(45,212,191,0.14);
+    --gold:#fbbf24;
+    --gold-soft:rgba(251,191,36,0.14);
     --red:#f87171;
     --font-mono:ui-monospace,"Cascadia Mono","SFMono-Regular",Consolas,"Liberation Mono",monospace;
     --font-sans:"Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif;
@@ -149,6 +151,11 @@
 
   .ai-panel{border-color:rgba(45,212,191,.35);}
   .ai-panel .panel-title .badge{background:var(--teal-soft);color:var(--teal);}
+  .video-panel{border-color:rgba(251,191,36,.35);}
+  .video-panel .panel-title .badge{background:var(--gold-soft);color:var(--gold);}
+  .video-panel .ai-report .ok{color:var(--gold);}
+  .btn.gold{background:var(--gold);color:#3a2704;border-color:var(--gold);font-weight:700;}
+  .btn.gold:hover{background:#fcd34d;box-shadow:0 0 16px rgba(251,191,36,.5);}
   .api-settings{margin-bottom:14px;}
   .api-settings summary{cursor:pointer;font-family:var(--font-mono);font-size:12.5px;color:var(--text-dim);}
   .api-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;}
@@ -326,11 +333,28 @@
     </div>
   </section>
 
+  <section class="panel video-panel">
+    <div class="panel-head">
+      <div class="panel-title"><span class="badge">🎬</span>五秒影片腳本參考（選用）</div>
+    </div>
+    <p class="panel-hint">根據上面「AI 優化結果」的圖片內容，生成 3 個 5 秒鐘的動態影片腳本參考——可用於把這張靜態商品圖轉成短影音的靈感（例如 Kling／Runway／Google Veo 等圖生影片工具的動作提示，或剪輯短影音時的腳本參考）。需要先完成上方「送給 AI 優化」才能使用。</p>
+
+    <div class="output-actions">
+      <button class="btn gold" id="videoScriptBtn" type="button">🎬 產生五秒影片腳本（3個方案）</button>
+      <button class="btn ghost" id="copyVideoBtn" type="button">複製影片腳本</button>
+    </div>
+    <div id="videoReport" class="ai-report" aria-live="polite"></div>
+    <div class="field" style="margin-top:12px;">
+      <label>五秒影片腳本參考</label>
+      <div class="output-box" id="videoOutput"></div>
+    </div>
+  </section>
+
   <section class="panel">
     <div class="panel-head">
       <div class="panel-title"><span class="badge">REC</span>已儲存的提示詞</div>
     </div>
-    <p class="panel-hint">把目前這份提示詞（含 AI 優化結果，若有）存成一筆有名字的紀錄，留在這台瀏覽器裡；需要檔案再從清單裡個別下載。</p>
+    <p class="panel-hint">把目前這份提示詞（含 AI 優化結果與五秒影片腳本，若有）存成一筆有名字的紀錄，留在這台瀏覽器裡；需要檔案再從清單裡個別下載。</p>
     <div class="save-row">
       <input type="text" id="filenameInput" aria-label="儲存名稱" maxlength="80" spellcheck="false" placeholder="幫這筆提示詞取個名字">
       <button class="btn primary" id="saveBtn" type="button">儲存</button>
@@ -648,9 +672,9 @@
   var state = loadState();
   function defaultFields(){ return {concept:'', style:'', composition:'', lighting:'', ratio:'', quality:[], negativeTags:[], negative:''}; }
   function defaultState(){
-    var assembled = {}, aiOut = {};
-    TARGET_ORDER.forEach(function(t){ assembled[t] = ''; aiOut[t] = ''; });
-    return {activeTarget: 'gemini', fields: defaultFields(), assembled: assembled, aiOutput: aiOut};
+    var assembled = {}, aiOut = {}, videoOut = {};
+    TARGET_ORDER.forEach(function(t){ assembled[t] = ''; aiOut[t] = ''; videoOut[t] = ''; });
+    return {activeTarget: 'gemini', fields: defaultFields(), assembled: assembled, aiOutput: aiOut, videoScripts: videoOut};
   }
   function loadState(){
     try{
@@ -663,6 +687,7 @@
       TARGET_ORDER.forEach(function(t){
         if(typeof raw.assembled === 'object' && raw.assembled && raw.assembled[t]) d.assembled[t] = raw.assembled[t];
         if(typeof raw.aiOutput === 'object' && raw.aiOutput && raw.aiOutput[t]) d.aiOutput[t] = raw.aiOutput[t];
+        if(typeof raw.videoScripts === 'object' && raw.videoScripts && raw.videoScripts[t]) d.videoScripts[t] = raw.videoScripts[t];
       });
       if(raw.activeTarget && TARGETS[raw.activeTarget]) d.activeTarget = raw.activeTarget;
       return d;
@@ -699,6 +724,8 @@
     $('targetHint').textContent = tg.hint;
     $('promptOutput').textContent = state.assembled[state.activeTarget] || '';
     $('aiOutput').textContent = state.aiOutput[state.activeTarget] || '';
+    $('videoOutput').textContent = state.videoScripts[state.activeTarget] || '';
+    $('videoReport').innerHTML = '';
   }
 
   /* ---------- 共用欄位渲染（下拉選單／複選畫質標籤，一次性建立） ---------- */
@@ -1039,6 +1066,67 @@
     }
   });
 
+  /* ---------- 五秒影片腳本參考：以「AI 優化結果」的圖片內容為基礎，請 LLM 產生 3 個動態影片腳本方案 ---------- */
+  function videoScriptPromptForTarget(target, aiOptimizedText){
+    var tg = TARGETS[target];
+    var lines = [];
+    lines.push('你是一位擅長把靜態商品／畫面圖片轉成短影音腳本的導演。下面是一張已經寫好的圖片生成提示詞（給「' + tg.label + '」使用），描述了畫面內容：');
+    lines.push('');
+    lines.push(aiOptimizedText);
+    lines.push('');
+    lines.push('請針對這張圖片的畫面內容，提出 3 個不同的「5 秒鐘動態影片」腳本方案，目的是把這張靜態圖片轉成短影音（例如給 Kling／Runway／Google Veo 等圖生影片工具使用，或作為剪輯短影音的動作腳本參考）。');
+    lines.push('');
+    lines.push('每個方案請包含：');
+    lines.push('1. 鏡頭運動（例如：緩慢推近、環繞拍攝、平移、固定運鏡）');
+    lines.push('2. 畫面中的動態元素（例如：產品緩慢旋轉、光影變化、布料飄動、液體流動）');
+    lines.push('3. 一句可直接貼給圖生影片工具使用的英文動作提示詞');
+    lines.push('');
+    lines.push('輸出格式：「方案一」「方案二」「方案三」三個段落，每段 3～4 行（依上述三點），不要輸出其他說明文字。');
+    return lines.join('\n');
+  }
+
+  $('videoScriptBtn').addEventListener('click', async function(){
+    var provider = $('aiProvider').value;
+    var model = $('aiModel').value.trim();
+    var apiKey = $('aiKey').value.trim();
+    var report = $('videoReport');
+
+    var aiText = state.aiOutput[state.activeTarget];
+    if(!aiText){ report.innerHTML = '<div class="bad">請先在上方「送給 AI 優化」產生結果，再產生影片腳本</div>'; return; }
+    if(!apiKey){ report.innerHTML = '<div class="bad">請先在「API 連線設定」填入 API 金鑰</div>'; return; }
+    if(!model){ report.innerHTML = '<div class="bad">請填入模型名稱</div>'; return; }
+    if(!isLatin1(apiKey)){ report.innerHTML = '<div class="bad">API 金鑰包含不可用的字元（可能複製時夾帶了多餘的符號、中文字或全形空白），請重新確認只貼上金鑰本身，前後不要有其他文字</div>'; return; }
+    if(!isLatin1(model)){ report.innerHTML = '<div class="bad">模型名稱包含不可用的字元，請確認只填入英數字模型 ID</div>'; return; }
+
+    var promptForAi = videoScriptPromptForTarget(state.activeTarget, aiText);
+
+    persistApiConfig();
+    var btn = $('videoScriptBtn');
+    btn.disabled = true;
+    report.innerHTML = '<div class="ok">呼叫 ' + AI_PROVIDERS[provider].label + '（' + escapeHtml(model) + '）中，請稍候…</div>';
+    try{
+      var text = await callLLM(provider, model, apiKey, promptForAi, function(attempt, status, waitSec){
+        report.innerHTML = '<div class="warn">API 回應 ' + status + '（服務商暫時過載／限流），' + waitSec + ' 秒後自動重試（第 ' + attempt + '／2 次）…</div>';
+      });
+      state.videoScripts[state.activeTarget] = text;
+      persistState();
+      $('videoOutput').textContent = text;
+      report.innerHTML = '<div class="ok">已產生 3 個影片腳本方案，請自行檢查後再使用。</div>';
+    }catch(err){
+      var msg;
+      if(err.name === 'TimeoutError') msg = '請求逾時（180秒），請重試或換模型';
+      else if(/ISO-8859-1|non.*code point/i.test(err.message || '')) msg = 'API 金鑰或模型名稱包含不可用的字元（可能複製時夾帶了多餘的符號或中文字），請重新確認貼上的內容只有金鑰／模型 ID 本身';
+      else msg = err.message;
+      report.innerHTML = '<div class="bad">產生失敗：' + escapeHtml(msg) + '</div>';
+    }finally{
+      btn.disabled = false;
+    }
+  });
+
+  $('copyVideoBtn').addEventListener('click', function(){
+    copyText(state.videoScripts[state.activeTarget], '還沒有影片腳本可以複製');
+  });
+
   /* ---------- 已儲存的提示詞（localStorage 清單，非檔案下載） ---------- */
   var SAVED_KEY = 'imgPromptSavedItems';
   function sanitizeFilename(name){ return name.replace(/[\\/:*?"<>|]/g, '').trim(); }
@@ -1052,6 +1140,7 @@
   function itemFullText(item){
     var text = item.assembledPrompt || '';
     if(item.aiOutput) text += '\n\n---- AI 優化結果 ----\n\n' + item.aiOutput;
+    if(item.videoScript) text += '\n\n---- 五秒影片腳本參考 ----\n\n' + item.videoScript;
     return text;
   }
   function renderSavedList(){
@@ -1067,7 +1156,7 @@
       return '<div class="saved-item">'
         + '<div class="saved-item-main">'
         + '<div class="saved-item-name">[' + escapeHtml(typeLabel) + '] ' + escapeHtml(item.name) + '</div>'
-        + '<div class="saved-item-meta">' + formatSavedDate(item.savedAt) + (item.aiOutput ? '　·　含 AI 優化結果' : '') + '</div>'
+        + '<div class="saved-item-meta">' + formatSavedDate(item.savedAt) + (item.aiOutput ? '　·　含 AI 優化結果' : '') + (item.videoScript ? '　·　含影片腳本' : '') + '</div>'
         + '</div>'
         + '<div class="saved-item-actions">'
         + '<button type="button" class="chip" data-action="load" data-id="' + item.id + '">載入</button>'
@@ -1090,7 +1179,8 @@
     if(existing && !confirm('已經有一筆叫做「' + name + '」的紀錄，要覆蓋它嗎？')) return;
     var record = {
       target: state.activeTarget, name: name, savedAt: Date.now(),
-      fieldValues: JSON.parse(JSON.stringify(state.fields)), assembledPrompt: prompt, aiOutput: state.aiOutput[state.activeTarget] || ''
+      fieldValues: JSON.parse(JSON.stringify(state.fields)), assembledPrompt: prompt, aiOutput: state.aiOutput[state.activeTarget] || '',
+      videoScript: state.videoScripts[state.activeTarget] || ''
     };
     if(existing){
       Object.assign(existing, record);
@@ -1121,6 +1211,7 @@
       state.fields = Object.assign(defaultFields(), item.fieldValues || {});
       state.assembled[item.target] = item.assembledPrompt || '';
       state.aiOutput[item.target] = item.aiOutput || '';
+      state.videoScripts[item.target] = item.videoScript || '';
       persistState();
       renderTabs();
       renderTargetPanel();
