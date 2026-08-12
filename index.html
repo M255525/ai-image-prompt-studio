@@ -251,8 +251,13 @@
     </div>
 
     <div class="field">
-      <label for="f_negative">負面提示詞（不想出現的元素，選填）</label>
-      <textarea id="f_negative" placeholder="例：雜亂背景、人手、文字浮水印"></textarea>
+      <label>常見負面提示詞（可複選）</label>
+      <div class="checkbox-group" id="negativeGroup"></div>
+    </div>
+
+    <div class="field">
+      <label for="f_negative">其他負面提示詞（不想出現的元素，選填）</label>
+      <textarea id="f_negative" placeholder="例：陰影過重、真實動物毛髮質感"></textarea>
     </div>
   </section>
 
@@ -526,7 +531,11 @@
     {v:'minimalist', zh:'極簡設計', en:'minimalist design, clean composition'},
     {v:'vintage', zh:'復古底片', en:'vintage film photography, grainy film texture'},
     {v:'conceptart', zh:'概念藝術', en:'concept art, digital painting'},
-    {v:'pixelart', zh:'像素風', en:'pixel art style, 16-bit'}
+    {v:'pixelart', zh:'像素風', en:'pixel art style, 16-bit'},
+    {v:'ecommerce-white', zh:'電商白底商品圖', en:'e-commerce product photography, pure white background, professional studio lighting, sharp commercial detail, optimized for online store listing to drive sales'},
+    {v:'ecommerce-lifestyle', zh:'電商情境生活風', en:'e-commerce lifestyle product photography, styled in an aspirational real-life setting to appeal to online shoppers and boost conversion'},
+    {v:'ecommerce-flatlay', zh:'電商平拍陳列', en:'e-commerce flat lay product photography, top-down clean arrangement, commercial styling for marketplace listing'},
+    {v:'ecommerce-banner', zh:'電商促銷海報風', en:'e-commerce promotional banner photography, bold sales-driven composition with clear space reserved for marketing text overlay'}
   ];
   var COMPOSITION_OPTIONS = [
     {v:'closeup', zh:'特寫', en:'close-up shot'},
@@ -552,6 +561,16 @@
     {v:'award', zh:'獲獎作品', en:'award-winning'},
     {v:'sharp', zh:'銳利對焦', en:'sharp focus'},
     {v:'colorgrade', zh:'電影級調色', en:'cinematic color grading'}
+  ];
+  var NEGATIVE_OPTIONS = [
+    {v:'watermark-text', zh:'浮水印／文字／Logo', en:'watermark, text, logo'},
+    {v:'blurry-focus', zh:'模糊失焦', en:'blurry, out of focus, low resolution'},
+    {v:'low-quality', zh:'低畫質／像素化', en:'low quality, pixelated, jpeg artifacts'},
+    {v:'deformed-limbs', zh:'變形肢體／多餘手指', en:'deformed hands, extra fingers, malformed limbs'},
+    {v:'cluttered-bg', zh:'雜亂背景', en:'cluttered background, messy background'},
+    {v:'bad-exposure', zh:'過曝／曝光不足', en:'overexposed, underexposed, poor lighting'},
+    {v:'human-hands', zh:'人手入鏡', en:'human hands, human body parts in frame'},
+    {v:'extra-logo', zh:'額外品牌標誌', en:'extra logos, unwanted brand marks'}
   ];
   var RATIO_OPTIONS = [
     {v:'1:1', zh:'1:1 方形（社群貼文）'},
@@ -581,6 +600,15 @@
     (v.quality || []).forEach(function(q){ var z = optZh(QUALITY_OPTIONS, q); if(z) tags.push(z); });
     return tags;
   }
+  function buildNegativeList(v){
+    var en = [], zh = [];
+    (v.negativeTags || []).forEach(function(n){
+      var e = optEn(NEGATIVE_OPTIONS, n); if(e) en.push(e);
+      var z = optZh(NEGATIVE_OPTIONS, n); if(z) zh.push(z);
+    });
+    if(v.negative){ en.push(v.negative); zh.push(v.negative); }
+    return {en: en, zh: zh};
+  }
 
   /* ---------- 四個目標模型分頁：只定義呈現格式，欄位是共用的 ---------- */
   var TARGETS = {
@@ -593,15 +621,16 @@
 
   /* ---------- 內建情境範例（完全虛構，套用時填滿共用欄位） ---------- */
   var PRESETS = [
-    {name:'質感香氛蠟燭產品攝影', concept:'一瓶質感香氛蠟燭放在木質桌面上，搭配幾片乾燥花瓣，營造溫暖悠閒的居家氛圍', style:'photoreal', composition:'closeup', lighting:'studio', ratio:'1:1', quality:['8k','proPhoto','sharp'], negative:'雜亂背景、人手、文字浮水印'},
-    {name:'奇幻精靈戰士插畫', concept:'一位身穿銀色鎧甲的精靈戰士站在發光的森林入口，手持散發藍色光芒的長劍', style:'conceptart', composition:'medium', lighting:'dramatic', ratio:'16:9', quality:['detailed','award'], negative:'寫實照片風格、模糊'},
-    {name:'品牌吉祥物設計', concept:'一隻圓滾滾的橘色貓咪吉祥物，戴著小小的廚師帽，雙手比出 OK 手勢，卡通風格', style:'vector', composition:'centered', lighting:'daylight', ratio:'1:1', quality:['detailed'], negative:'陰影過重、真實動物毛髮質感'}
+    {name:'質感香氛蠟燭產品攝影', concept:'一瓶質感香氛蠟燭放在木質桌面上，搭配幾片乾燥花瓣，營造溫暖悠閒的居家氛圍', style:'photoreal', composition:'closeup', lighting:'studio', ratio:'1:1', quality:['8k','proPhoto','sharp'], negativeTags:['cluttered-bg','human-hands','watermark-text'], negative:''},
+    {name:'奇幻精靈戰士插畫', concept:'一位身穿銀色鎧甲的精靈戰士站在發光的森林入口，手持散發藍色光芒的長劍', style:'conceptart', composition:'medium', lighting:'dramatic', ratio:'16:9', quality:['detailed','award'], negativeTags:['blurry-focus'], negative:'寫實照片風格'},
+    {name:'品牌吉祥物設計', concept:'一隻圓滾滾的橘色貓咪吉祥物，戴著小小的廚師帽，雙手比出 OK 手勢，卡通風格', style:'vector', composition:'centered', lighting:'daylight', ratio:'1:1', quality:['detailed'], negativeTags:[], negative:'陰影過重、真實動物毛髮質感'},
+    {name:'電商運動鞋白底主圖', concept:'一雙白色皮革運動鞋放在純白背景上，展示鞋款材質與細節，適合電商平台商品主圖', style:'ecommerce-white', composition:'closeup', lighting:'studio', ratio:'1:1', quality:['8k','proPhoto','sharp'], negativeTags:['watermark-text','cluttered-bg','human-hands'], negative:''}
   ];
 
   /* ---------- 狀態：共用欄位（單一物件，非分頁各自獨立）＋各分頁的組成結果／AI 結果 ---------- */
   var STATE_KEY = 'imgPromptState';
   var state = loadState();
-  function defaultFields(){ return {concept:'', style:'', composition:'', lighting:'', ratio:'', quality:[], negative:''}; }
+  function defaultFields(){ return {concept:'', style:'', composition:'', lighting:'', ratio:'', quality:[], negativeTags:[], negative:''}; }
   function defaultState(){
     var assembled = {}, aiOut = {};
     TARGET_ORDER.forEach(function(t){ assembled[t] = ''; aiOut[t] = ''; });
@@ -614,6 +643,7 @@
       var d = defaultState();
       Object.assign(d.fields, raw.fields);
       if(!Array.isArray(d.fields.quality)) d.fields.quality = [];
+      if(!Array.isArray(d.fields.negativeTags)) d.fields.negativeTags = [];
       TARGET_ORDER.forEach(function(t){
         if(typeof raw.assembled === 'object' && raw.assembled && raw.assembled[t]) d.assembled[t] = raw.assembled[t];
         if(typeof raw.aiOutput === 'object' && raw.aiOutput && raw.aiOutput[t]) d.aiOutput[t] = raw.aiOutput[t];
@@ -661,10 +691,11 @@
       + list.map(function(o){ return '<option value="' + o.v + '">' + escapeHtml(o.zh) + '</option>'; }).join('');
   }
 
-  function renderQualityGroup(){
-    var wrap = $('qualityGroup');
-    wrap.innerHTML = QUALITY_OPTIONS.map(function(o){
-      var checked = state.fields.quality.indexOf(o.v) >= 0;
+  function renderCheckboxGroup(elId, options, fieldKey){
+    var wrap = $(elId);
+    var list = state.fields[fieldKey];
+    wrap.innerHTML = options.map(function(o){
+      var checked = list.indexOf(o.v) >= 0;
       return '<label class="checkbox-pill' + (checked ? ' checked' : '') + '" data-v="' + o.v + '">'
         + '<input type="checkbox" value="' + o.v + '"' + (checked ? ' checked' : '') + '>' + escapeHtml(o.zh)
         + '</label>';
@@ -673,11 +704,12 @@
       pill.addEventListener('click', function(e){
         e.preventDefault();
         var v = pill.getAttribute('data-v');
-        var idx = state.fields.quality.indexOf(v);
-        if(idx >= 0) state.fields.quality.splice(idx, 1);
-        else state.fields.quality.push(v);
-        pill.classList.toggle('checked', state.fields.quality.indexOf(v) >= 0);
-        pill.querySelector('input').checked = state.fields.quality.indexOf(v) >= 0;
+        var arr = state.fields[fieldKey];
+        var idx = arr.indexOf(v);
+        if(idx >= 0) arr.splice(idx, 1);
+        else arr.push(v);
+        pill.classList.toggle('checked', arr.indexOf(v) >= 0);
+        pill.querySelector('input').checked = arr.indexOf(v) >= 0;
         persistState();
       });
     });
@@ -690,7 +722,8 @@
     $('f_lighting').value = state.fields.lighting || '';
     $('f_ratio').value = state.fields.ratio || '';
     $('f_negative').value = state.fields.negative || '';
-    renderQualityGroup();
+    renderCheckboxGroup('qualityGroup', QUALITY_OPTIONS, 'quality');
+    renderCheckboxGroup('negativeGroup', NEGATIVE_OPTIONS, 'negativeTags');
   }
 
   function initFieldInputs(){
@@ -709,7 +742,7 @@
 
   function fieldsHasContent(){
     var f = state.fields;
-    return !!(f.concept || f.style || f.composition || f.lighting || f.ratio || (f.quality && f.quality.length) || f.negative);
+    return !!(f.concept || f.style || f.composition || f.lighting || f.ratio || (f.quality && f.quality.length) || (f.negativeTags && f.negativeTags.length) || f.negative);
   }
 
   /* ---------- 組成提示詞（純前端關鍵字組裝，不需金鑰、不連網；概念文字本身不會被翻譯） ---------- */
@@ -723,18 +756,19 @@
 
   function assembleForTarget(target, v){
     var tagsEn = buildTagsEn(v);
+    var neg = buildNegativeList(v);
     var lines = [];
     lines.push('【概念】' + v.concept);
     if(tagsEn.length) lines.push('【風格標籤（英文）】' + tagsEn.join(', '));
     if(target === 'midjourney'){
       var paramLine = '--ar ' + (v.ratio || '1:1') + ' --v 6';
-      if(v.negative) paramLine += ' --no ' + v.negative;
+      if(neg.en.length) paramLine += ' --no ' + neg.en.join(', ');
       lines.push('【建議 Midjourney 參數】' + paramLine);
     } else {
       var ratioOpt = optFind(RATIO_OPTIONS, v.ratio);
       if(ratioOpt) lines.push('【長寬比】' + ratioOpt.zh);
     }
-    if(v.negative) lines.push('【不想出現的元素】' + v.negative);
+    if(neg.zh.length) lines.push('【不想出現的元素】' + neg.zh.join('、'));
     lines.push('');
     lines.push('※ 以上為關鍵字組裝結果，概念文字尚未翻譯成英文。如需正式的中英對照提示詞，請使用下方「送給 AI 優化」。');
     return lines.join('\n');
@@ -797,7 +831,7 @@
     state.fields = {
       concept: preset.concept || '', style: preset.style || '', composition: preset.composition || '',
       lighting: preset.lighting || '', ratio: preset.ratio || '', quality: (preset.quality || []).slice(),
-      negative: preset.negative || ''
+      negativeTags: (preset.negativeTags || []).slice(), negative: preset.negative || ''
     };
     persistState();
     renderFieldsFromState();
@@ -925,10 +959,11 @@
   function aiPromptForTarget(target, v){
     var tg = TARGETS[target];
     var tagsZh = buildTagsZh(v);
+    var neg = buildNegativeList(v);
     var formatRule;
     if(target === 'midjourney'){
       formatRule = '請用逗號分隔的英文關鍵詞組（不要用完整句子），結尾附上 "--ar ' + (v.ratio || '1:1') + ' --v 6"'
-        + (v.negative ? '，並視情況加上 "--no ..." 處理不想出現的元素' : '') + '。';
+        + (neg.zh.length ? '，並視情況加上 "--no ..." 處理不想出現的元素' : '') + '。';
     } else {
       formatRule = '請用 1～3 句流暢的英文自然語言描述句（不需要任何參數語法），把風格設定自然地寫進句子裡，不要條列標籤。';
     }
@@ -939,7 +974,7 @@
     if(tagsZh.length) lines.push('指定風格／構圖／光線／畫質（請自然融入，不要生硬條列）：' + tagsZh.join('、'));
     var ratioOpt = optFind(RATIO_OPTIONS, v.ratio);
     if(ratioOpt) lines.push('長寬比：' + ratioOpt.zh);
-    if(v.negative) lines.push('不想出現的元素：' + v.negative);
+    if(neg.zh.length) lines.push('不想出現的元素：' + neg.zh.join('、'));
     lines.push('');
     lines.push('輸出規則：');
     lines.push('1. 先輸出一段「中文說明」，簡短描述你理解的畫面內容，方便使用者確認語意是否正確；');
