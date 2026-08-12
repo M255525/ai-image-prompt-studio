@@ -76,6 +76,10 @@ node --check _check.js
 
 **測試序號授權邏輯前，需先照 `SETUP-授權伺服器設定.md` 部署好 Apps Script 並回填 `LICENSE_CHECK_URL`**，否則會顯示「尚未設定授權伺服器網址」的 fail-closed 錯誤訊息並停留在鎖定畫面；開發階段要測試欄位/分頁/AI/儲存清單等其他功能，可在瀏覽器 devtools 手動對 `#licenseGate` 加上 `hidden` class 暫時繞過。
 
+## GitHub 與線上部署
+
+公開 repo：<https://github.com/M255525/ai-image-prompt-studio>（與 `ai-prompt-generator` 同樣模式；使用者已確認公開 repo 沒問題，即使 `CLAUDE.md`／`SETUP-授權伺服器設定.md` 裡含有授權後端 Google Sheet 的網址——該連結本身不代表任何人能編輯/檢視，取決於 Sheet 自己的分享設定）。已啟用 GitHub Pages（`gh api repos/.../pages` 建立，source 為 `master` 分支根目錄），線上網址：<https://m255525.github.io/ai-image-prompt-studio/>。`README.md` 是給 GitHub repo 首頁看的說明文件，與 `CLAUDE.md`（給 Claude Code 的開發筆記）分工不同，兩者都要在功能變動時同步更新。
+
 ## 本次未做（後續視需要再處理）
 
 - exe 尚未實機雙擊驗證（Smart App Control 延遲封鎖，見上）。

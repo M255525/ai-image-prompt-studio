@@ -2,3 +2,6 @@
 *.exe
 __pycache__/
 *.pyc
+
+# Playwright 測試截圖/紀錄
+.playwright-mcp/
