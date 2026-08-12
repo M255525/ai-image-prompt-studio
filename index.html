@@ -1045,7 +1045,14 @@
     return lines.join('\n');
   }
 
-  $('fetchUrlBtn').addEventListener('click', async function(){
+  function renderUrlFetchError(msg){
+    var report = $('urlFetchReport');
+    report.innerHTML = '<div class="bad">' + escapeHtml(msg) + '</div>'
+      + '<button type="button" class="chip" id="urlRetryBtn" style="margin-top:8px;">🔄 重試</button>';
+    $('urlRetryBtn').addEventListener('click', runUrlFetch);
+  }
+
+  async function runUrlFetch(){
     var url = $('f_producturl').value.trim();
     var report = $('urlFetchReport');
     if(!url){ report.innerHTML = '<div class="bad">請先貼上商品網址</div>'; return; }
@@ -1064,8 +1071,8 @@
     try{
       var pageResp = await fetch(READER_PREFIX + url, {signal: AbortSignal.timeout(30000)});
       if(!pageResp.ok){
-        // r.jina.ai 錯誤時會回傳 JSON（含 message／readableMessage 說明實際原因，例如網域無法解析、URL 格式錯誤），
-        // 比單純的 HTTP 狀態碼有用得多，能解析就優先顯示；解析不到才退回顯示狀態碼
+        // r.jina.ai 錯誤時會回傳 JSON（含 message／readableMessage 說明實際原因，例如網域無法解析、URL 格式錯誤、
+        // 目標網站的無頭瀏覽器渲染逾時），比單純的 HTTP 狀態碼有用得多，能解析就優先顯示；解析不到才退回顯示狀態碼
         var reason = '';
         try{
           var errBody = JSON.parse(await pageResp.text());
@@ -1074,6 +1081,12 @@
         throw new Error('抓取失敗（狀態碼 ' + pageResp.status + '）' + (reason ? '：' + reason : '，這個網站可能不支援自動抓取'));
       }
       var pageText = await pageResp.text();
+      // r.jina.ai 有時會用 HTTP 200 回傳「目標網站本身出錯」的說明頁（例如目標站逾時/502/504），
+      // 內容格式固定帶有這行提示——這種情況不是真的抓到商品內容，要當成失敗處理，不能直接餵給 AI
+      var targetErrMatch = pageText.match(/Warning: Target URL returned error (\d+)[:：]?\s*([^\n]*)/);
+      if(targetErrMatch){
+        throw new Error('目標網站回應異常（' + targetErrMatch[1] + (targetErrMatch[2] ? ' ' + targetErrMatch[2] : '') + '），可能是該網站暫時不穩定，可以重試看看');
+      }
       if(!pageText || pageText.trim().length < 30) throw new Error('抓到的內容太少，這個網站可能需要登入或內容由 JavaScript 動態載入，請改為手動輸入概念描述');
 
       report.innerHTML = '<div class="ok">已抓取網頁內容，呼叫 ' + AI_PROVIDERS[provider].label + ' 整理商品賣點中…</div>';
@@ -1093,15 +1106,17 @@
       }
     }catch(err){
       var msg;
-      if(err.name === 'TimeoutError') msg = '抓取或呼叫逾時，請重試，或改為手動輸入概念描述';
+      if(err.name === 'TimeoutError') msg = '抓取或呼叫逾時，這個網站可能暫時回應較慢，可以重試看看';
       else if(/ISO-8859-1|non.*code point/i.test(err.message || '')) msg = 'API 金鑰或模型名稱包含不可用的字元，請重新確認「API 連線設定」內容';
       else if(/Failed to fetch|NetworkError/i.test(err.message || '')) msg = '無法連線到網頁擷取服務，請檢查網路連線或稍後再試';
       else msg = err.message;
-      report.innerHTML = '<div class="bad">' + escapeHtml(msg) + '</div>';
+      renderUrlFetchError(msg);
     }finally{
       btn.disabled = false;
     }
-  });
+  }
+
+  $('fetchUrlBtn').addEventListener('click', runUrlFetch);
 
   /* ---------- 送給 AI 優化的請求內容：依目標模型分頁附上不同的輸出格式規則 ---------- */
   function aiPromptForTarget(target, v){
