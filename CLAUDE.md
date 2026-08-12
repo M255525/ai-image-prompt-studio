@@ -32,6 +32,15 @@
 
 `#marqueeBar` 內容抓自工作區既有的共用授權伺服器（`https://script.google.com/macros/s/AKfycbwKX0.../exec`，與 `Prompt/index.html`、`ai-prompt-generator`、`ai-video-studio` 系列共用同一個 Google Sheet），做法完全比照 `ai-prompt-generator/index.html` 的獨立跑馬燈邏輯——**跟本工具自己的序號授權後端是兩個互不相干的系統**：頁面載入時直接 POST 一個空序號給共用端點，`localStorage` key `imgPromptMarquee`，每 20 分鐘背景重抓一次。改跑馬燈內容直接編輯共用 Sheet 即可，不需要重新部署任何 Apps Script。
 
+## 響應式設計（桌機／平板／手機）
+
+版型從一開始就採用流體設計（`main`/`.hero p.lead` 皆為 `max-width` 而非固定寬、按鈕與 chip 皆 `flex-wrap`），本次針對桌機／平板／手機三種寬度做過完整稽核（Playwright 在此環境的 `browser_resize` 實際套用的視窗寬度會被畫面縮放係數影響、跟請求的數字不一致——不要假設 resize 後 `window.innerWidth` 等於你傳入的寬度，稽核時務必用 `window.innerWidth` 實際讀值，不要用請求值）：
+
+- **900px 以下**（平板）：`main`/`.panel` 內距略縮，`.field-grid`／`.api-grid` 仍維持雙欄（欄寬還很充裕，不需要提早收成單欄）。
+- **600px 以下**（手機）：`.field-grid`／`.api-grid` 收成單欄、`.type-tabs` 收成直向堆疊；同時**放大觸控熱區**——`.btn` 至少 44px 高（WCAG 建議值）、`.chip`／`.checkbox-pill` 至少 38px 高，且 `.output-actions .btn` 改用 `flex:1 1 auto` 讓兩顆按鈕平均撐滿寬度，比原本各自窄窄的兩顆更好點按。
+- 從 260px（極窄手機）到約 1600px 都稽核過 `document.documentElement.scrollWidth` 沒有超出 `window.innerWidth`（無橫向捲動），topbar 的 brand／nav 在任何寬度都沒有互相覆蓋。
+- **測試時的快取坑**：用同一個 `python -m http.server` 常駐服務改完 CSS 後直接用 Playwright 重新 `navigate` 同一個網址，瀏覽器可能吃到 304 快取、看不到最新樣式（改的東西明明存檔了，量出來的尺寸卻沒變）——用 `?v=數字` 這種隨便加的查詢參數強制重新抓取即可，不要誤以為是 CSS 沒生效。
+
 ## 隱私與警語
 
 無伺服器端經手使用者資料；欄位內容、組成結果、AI 優化結果、已儲存清單皆只存在使用者瀏覽器的 localStorage。序號驗證只會傳送序號本身給授權伺服器，不會傳送任何概念或提示詞內容。首頁與手冊皆明列使用警語：AI 優化結果需自行查核、請勿輸入真實個資或機密資料、僅供教學與個人使用禁止商業化。修改功能時這些警語需一併檢視是否仍準確。
