@@ -135,6 +135,9 @@
   .field label{display:block;font-size:13px;font-weight:700;color:var(--text-dim);margin-bottom:6px;}
   .field .field-hint{font-size:12px;color:var(--text-faint);margin:4px 0 0;}
   .field-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
+  .inline-row{display:flex;gap:8px;}
+  .inline-row input{flex:1;min-width:0;}
+  .inline-row button{flex:none;}
 
   .checkbox-group{display:flex;flex-wrap:wrap;gap:8px;}
   .checkbox-pill{font-family:var(--font-mono);font-size:12.5px;background:var(--panel-raised);color:var(--text-dim);border:1px solid var(--line);padding:7px 13px;border-radius:20px;cursor:pointer;user-select:none;transition:.15s;}
@@ -257,6 +260,16 @@
     </div>
 
     <div class="field">
+      <label for="f_producturl">從商品網址抓取重點（選用）</label>
+      <div class="inline-row">
+        <input type="text" id="f_producturl" placeholder="貼上商品頁面網址，例如 https://...">
+        <button class="btn ghost" id="fetchUrlBtn" type="button">🔗 抓取重點</button>
+      </div>
+      <div id="urlFetchReport" class="ai-report" aria-live="polite"></div>
+      <p class="field-hint">會嘗試抓取這個網址的網頁內容，並用下方「送給 AI 優化」的 API 連線設定（服務商／模型／金鑰）整理成商品賣點，自動帶入下面的「概念描述」。部分網站可能無法正確抓取（例如需要登入、有阻擋機制、或內容由 JavaScript 動態載入），失敗時請自行複製貼上商品特色文字到概念描述欄位。</p>
+    </div>
+
+    <div class="field">
       <label for="f_concept">概念描述（必填）</label>
       <textarea id="f_concept" placeholder="例：一瓶質感香氛蠟燭放在木質桌面上，搭配幾片乾燥花瓣，營造溫暖悠閒的居家氛圍"></textarea>
     </div>
@@ -371,6 +384,7 @@
       <li>本工具產生的是「圖片生成提示詞」，實際生成的圖片內容與品質仍取決於你使用的圖片模型服務，請自行檢查是否符合該服務的條款與政策。</li>
       <li>請勿在任何欄位輸入真實個資、機密資料或受著作權保護的他人內容——欄位資料只存在你自己瀏覽器的 localStorage，不會上傳到任何伺服器，但送出給 AI 服務後的隱私仍由該服務條款規範。</li>
       <li>「送給 AI 優化」需要你自行填入 API 金鑰，該金鑰只存在你的瀏覽器，按下產生時會直接連線到你選擇的服務商，本工具不會經手或保存金鑰，也不會向你收取任何 API 費用——實際費用依你與該服務商的方案計算。</li>
+      <li>「從商品網址抓取重點」會把網址與網頁內容送到第三方網頁擷取服務（r.jina.ai）再交給你選擇的 AI 服務商，請勿用於含機密或個資的網頁；不想使用這項功能可直接手動填寫概念描述。</li>
       <li>AI 優化結果可能有誤，貼給圖片模型前請自行檢查；本工具與創作者不對後續生成的圖片內容負責。</li>
       <li>僅供教學、課程及個人使用，禁止未經授權公開發布、販售或商業化使用。</li>
     </ul>
@@ -670,7 +684,7 @@
   /* ---------- 狀態：共用欄位（單一物件，非分頁各自獨立）＋各分頁的組成結果／AI 結果 ---------- */
   var STATE_KEY = 'imgPromptState';
   var state = loadState();
-  function defaultFields(){ return {concept:'', style:'', composition:'', lighting:'', ratio:'', quality:[], negativeTags:[], negative:''}; }
+  function defaultFields(){ return {productUrl:'', concept:'', style:'', composition:'', lighting:'', ratio:'', quality:[], negativeTags:[], negative:''}; }
   function defaultState(){
     var assembled = {}, aiOut = {}, videoOut = {};
     TARGET_ORDER.forEach(function(t){ assembled[t] = ''; aiOut[t] = ''; videoOut[t] = ''; });
@@ -759,6 +773,7 @@
   }
 
   function renderFieldsFromState(){
+    $('f_producturl').value = state.fields.productUrl || '';
     $('f_concept').value = state.fields.concept || '';
     $('f_style').value = state.fields.style || '';
     $('f_composition').value = state.fields.composition || '';
@@ -775,6 +790,7 @@
     fillSelect($('f_lighting'), LIGHTING_OPTIONS, '不指定');
     fillSelect($('f_ratio'), RATIO_OPTIONS, '不指定');
 
+    $('f_producturl').addEventListener('input', function(){ state.fields.productUrl = this.value; persistState(); });
     $('f_concept').addEventListener('input', function(){ state.fields.concept = this.value; persistState(); });
     $('f_style').addEventListener('change', function(){ state.fields.style = this.value; persistState(); });
     $('f_composition').addEventListener('change', function(){ state.fields.composition = this.value; persistState(); });
@@ -785,7 +801,7 @@
 
   function fieldsHasContent(){
     var f = state.fields;
-    return !!(f.concept || f.style || f.composition || f.lighting || f.ratio || (f.quality && f.quality.length) || (f.negativeTags && f.negativeTags.length) || f.negative);
+    return !!(f.productUrl || f.concept || f.style || f.composition || f.lighting || f.ratio || (f.quality && f.quality.length) || (f.negativeTags && f.negativeTags.length) || f.negative);
   }
 
   /* ---------- 組成提示詞（純前端關鍵字組裝，不需金鑰、不連網；概念文字本身不會被翻譯） ---------- */
@@ -872,7 +888,7 @@
     }
     var preset = PRESETS[parseInt(idx, 10)];
     state.fields = {
-      concept: preset.concept || '', style: preset.style || '', composition: preset.composition || '',
+      productUrl: '', concept: preset.concept || '', style: preset.style || '', composition: preset.composition || '',
       lighting: preset.lighting || '', ratio: preset.ratio || '', quality: (preset.quality || []).slice(),
       negativeTags: (preset.negativeTags || []).slice(), negative: preset.negative || ''
     };
@@ -997,6 +1013,70 @@
       throw new Error('API 回應 ' + resp.status + '：' + msg);
     }
   }
+
+  /* ---------- 從商品網址抓取重點：先用 r.jina.ai（免金鑰、支援 CORS 的網頁擷取服務）拿到網頁純文字，
+     再用使用者設定的 BYOK LLM 整理成適合當概念描述的商品賣點文字。純前端，沒有自己的後端代理。 ---------- */
+  var READER_PREFIX = 'https://r.jina.ai/';
+
+  function extractProductPrompt(pageText){
+    var truncated = pageText.slice(0, 6000);
+    var lines = [];
+    lines.push('以下是一個商品網頁擷取出來的純文字內容（可能包含導覽選單、頁尾等雜訊，請自行忽略不相關的部分）：');
+    lines.push('');
+    lines.push(truncated);
+    lines.push('');
+    lines.push('請從中找出這個商品的名稱與 3～5 個主要賣點／特色，整理成一段適合當作「宣傳海報圖片生成概念描述」的中文文字：1～3 句話，具體描述畫面應該呈現的商品與情境重點。直接輸出這段描述文字本身，不要條列、不要加其他說明或標題。');
+    return lines.join('\n');
+  }
+
+  $('fetchUrlBtn').addEventListener('click', async function(){
+    var url = $('f_producturl').value.trim();
+    var report = $('urlFetchReport');
+    if(!url){ report.innerHTML = '<div class="bad">請先貼上商品網址</div>'; return; }
+    if(!/^https?:\/\//i.test(url)){ report.innerHTML = '<div class="bad">網址需以 http:// 或 https:// 開頭</div>'; return; }
+
+    var provider = $('aiProvider').value;
+    var model = $('aiModel').value.trim();
+    var apiKey = $('aiKey').value.trim();
+    if(!apiKey){ report.innerHTML = '<div class="bad">請先在下方「送給 AI 優化」的「API 連線設定」填入 API 金鑰</div>'; return; }
+    if(!model){ report.innerHTML = '<div class="bad">請先在下方「API 連線設定」填入模型名稱</div>'; return; }
+    if(!isLatin1(apiKey) || !isLatin1(model)){ report.innerHTML = '<div class="bad">API 金鑰或模型名稱包含不可用的字元，請確認「API 連線設定」內容</div>'; return; }
+
+    var btn = $('fetchUrlBtn');
+    btn.disabled = true;
+    report.innerHTML = '<div class="ok">正在抓取網頁內容…</div>';
+    try{
+      var pageResp = await fetch(READER_PREFIX + url, {signal: AbortSignal.timeout(30000)});
+      if(!pageResp.ok) throw new Error('抓取失敗（狀態碼 ' + pageResp.status + '），這個網站可能不支援自動抓取');
+      var pageText = await pageResp.text();
+      if(!pageText || pageText.trim().length < 30) throw new Error('抓到的內容太少，這個網站可能需要登入或內容由 JavaScript 動態載入，請改為手動輸入概念描述');
+
+      report.innerHTML = '<div class="ok">已抓取網頁內容，呼叫 ' + AI_PROVIDERS[provider].label + ' 整理商品賣點中…</div>';
+      persistApiConfig();
+      var extractPrompt = extractProductPrompt(pageText);
+      var text = await callLLM(provider, model, apiKey, extractPrompt, function(attempt, status, waitSec){
+        report.innerHTML = '<div class="warn">API 回應 ' + status + '（服務商暫時過載／限流），' + waitSec + ' 秒後自動重試（第 ' + attempt + '／2 次）…</div>';
+      });
+
+      if(state.fields.concept && state.fields.concept.trim() && !confirm('目前「概念描述」已有內容，套用抓取結果將覆蓋，確定嗎？')){
+        report.innerHTML = '<div class="warn">已取消套用，抓取結果未帶入概念描述</div>';
+      } else {
+        state.fields.concept = text.trim();
+        $('f_concept').value = state.fields.concept;
+        persistState();
+        report.innerHTML = '<div class="ok">已將整理好的商品賣點帶入「概念描述」，請自行檢查是否符合需求。</div>';
+      }
+    }catch(err){
+      var msg;
+      if(err.name === 'TimeoutError') msg = '抓取或呼叫逾時，請重試，或改為手動輸入概念描述';
+      else if(/ISO-8859-1|non.*code point/i.test(err.message || '')) msg = 'API 金鑰或模型名稱包含不可用的字元，請重新確認「API 連線設定」內容';
+      else if(/Failed to fetch|NetworkError/i.test(err.message || '')) msg = '無法連線到網頁擷取服務，請檢查網路連線或稍後再試';
+      else msg = err.message;
+      report.innerHTML = '<div class="bad">' + escapeHtml(msg) + '</div>';
+    }finally{
+      btn.disabled = false;
+    }
+  });
 
   /* ---------- 送給 AI 優化的請求內容：依目標模型分頁附上不同的輸出格式規則 ---------- */
   function aiPromptForTarget(target, v){
