@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>操作手冊 · AI 繪圖提示詞工廠</title>
+<style>
+  :root{
+    --bg:#170b12; --bg-alt:#1d0f18; --panel:#241420; --panel-raised:#2c1826;
+    --line:#3d2231; --line-soft:#2a1420; --text:#f5e9f0; --text-dim:#c9a3ba; --text-faint:#8a6478;
+    --accent:#ec4899; --accent-glow:rgba(236,72,153,0.5); --red:#f87171;
+    --font-mono:ui-monospace,"Cascadia Mono","SFMono-Regular",Consolas,"Liberation Mono",monospace;
+    --font-sans:"Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-sans);line-height:1.75;}
+  a{color:var(--accent);}
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;padding:16px 24px;
+    border-bottom:1px solid var(--line-soft);background:var(--bg-alt);position:sticky;top:0;z-index:10;
+  }
+  .brand{display:flex;align-items:center;gap:10px;font-family:var(--font-mono);}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent-glow);}
+  .topbar a.back{
+    font-family:var(--font-mono);font-size:13px;color:var(--text-dim);text-decoration:none;
+    border:1px solid var(--line);padding:7px 14px;border-radius:6px;
+  }
+  .topbar a.back:hover{color:var(--accent);border-color:var(--accent);}
+  main{max-width:720px;margin:0 auto;padding:44px 24px 80px;}
+  h1{font-size:30px;margin:0 0 8px;}
+  .sub{color:var(--text-dim);margin:0 0 36px;}
+  .card{
+    background:linear-gradient(180deg,var(--panel-raised),var(--panel));
+    border:1px solid var(--line);border-radius:10px;padding:22px 24px;margin-bottom:20px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.04);
+  }
+  .card h2{font-size:19px;margin:0 0 14px;color:var(--accent);}
+  .card h3{font-size:15px;margin:18px 0 8px;color:var(--text);}
+  .card p, .card li{color:var(--text-dim);font-size:14.5px;}
+  .card ul, .card ol{padding-left:20px;margin:8px 0;}
+  .letter-row{display:flex;gap:10px;align-items:flex-start;margin-bottom:14px;}
+  .letter-row:last-child{margin-bottom:0;}
+  .letter-badge{
+    font-family:var(--font-mono);font-weight:800;font-size:14px;color:var(--accent);
+    border:1px solid var(--line);border-radius:6px;min-width:30px;height:30px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;background:var(--bg-alt);padding:0 4px;
+  }
+  .letter-row div p{margin:2px 0 0;}
+  .letter-row strong{font-size:14.5px;color:var(--text);}
+  .tip{
+    background:rgba(236,72,153,0.08);border:1px solid rgba(236,72,153,0.3);
+    border-radius:8px;padding:12px 16px;font-size:13.5px;color:var(--text-dim);margin-top:12px;
+  }
+  .warn{
+    background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.35);
+    border-radius:8px;padding:14px 16px;font-size:13.5px;color:var(--text-dim);
+  }
+  .warn strong{color:var(--red);}
+  code{background:var(--bg-alt);padding:2px 6px;border-radius:4px;font-family:var(--font-mono);font-size:13px;}
+  footer{border-top:1px solid var(--line-soft);background:var(--bg-alt);padding:24px;text-align:center;font-size:12.5px;color:var(--text-faint);font-family:var(--font-mono);}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="dot"></span><strong>AI 繪圖提示詞工廠</strong></div>
+  <a class="back" href="index.html">← 回到工具</a>
+</div>
+
+<main>
+  <h1>操作手冊</h1>
+  <p class="sub">AI 繪圖提示詞工廠把一句話的畫面概念，優化成適合 Google Nano Banana Pro／Gemini、ChatGPT／DALL-E、Midjourney 或通用格式使用的圖片生成提示詞。填一次概念與風格設定，四個目標模型分頁共用；可以直接複製組成結果，也可以串接你自己的語言模型取得中英對照的正式提示詞。</p>
+
+  <div class="card">
+    <h2>四個目標模型分頁的差異</h2>
+    <div class="letter-row">
+      <span class="letter-badge">GM</span>
+      <div><strong>Google Nano Banana Pro／Gemini</strong><p>自然語言描述句為主，1～3 句話即可，不需要任何參數語法，直接貼進 Gemini 或 Nano Banana Pro 的圖片生成對話框。</p></div>
+    </div>
+    <div class="letter-row">
+      <span class="letter-badge">GPT</span>
+      <div><strong>ChatGPT／DALL-E</strong><p>同樣是自然語言描述句，貼給 ChatGPT 的圖片生成功能或 DALL-E 使用，寫法習慣與 Gemini 接近。</p></div>
+    </div>
+    <div class="letter-row">
+      <span class="letter-badge">MJ</span>
+      <div><strong>Midjourney</strong><p>逗號分隔的英文關鍵詞組（不是完整句子），結尾會附上 <code>--ar</code>（長寬比）與 <code>--v</code>（版本）等參數，符合 Midjourney 的提示詞慣例；若有填「不想出現的元素」會加上 <code>--no</code> 參數。</p></div>
+    </div>
+    <div class="letter-row">
+      <span class="letter-badge">通用</span>
+      <div><strong>通用（泛用敘述式）</strong><p>不特定模型的泛用英文描述句，適合大多數圖片生成工具，沒有特定的參數語法。</p></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>操作步驟</h2>
+    <ol>
+      <li>先套用一個「範例」快速看懂欄位怎麼填，或直接從空白開始</li>
+      <li>在「概念描述」填入你想畫的畫面內容（必填），並視需要勾選風格、構圖／視角、光線氛圍、長寬比、畫質強化詞、負面提示詞——這些設定四個目標模型分頁共用，只需要填一次</li>
+      <li>在最上方選一個目標模型分頁（Gemini／ChatGPT／Midjourney／通用）</li>
+      <li>按「🔧 組成提示詞」，下方會出現關鍵字組裝結果，可按「複製提示詞」直接使用</li>
+      <li>若想取得正式的中英對照提示詞（概念文字經過翻譯與潤飾），展開「送給 AI 優化」面板的「API 連線設定」填入自己的金鑰，按「🚀 送給 AI 優化」</li>
+      <li>滿意的結果可以在下方「已儲存的提示詞」取名儲存，之後隨時載回來或下載成 .txt 檔</li>
+    </ol>
+    <div class="tip">切換目標模型分頁不會清掉概念與風格設定——這些欄位是四個分頁共用的；但每個分頁各自的「組成結果」與「AI 優化結果」會分開保留。</div>
+  </div>
+
+  <div class="card">
+    <h2>「組成提示詞」與「送給 AI 優化」有什麼不同</h2>
+    <p><strong>🔧 組成提示詞</strong>是純前端的關鍵字組裝，不需要 API 金鑰、不會連網：把你填的概念文字（保留原始語言）＋風格／構圖／光線／畫質標籤（已經是對應的英文片語）組合成一份草稿，方便快速預覽結構，但<strong>概念描述本身不會被翻譯成英文</strong>。</p>
+    <p><strong>🚀 送給 AI 優化</strong>會把概念與風格設定送給你設定的語言模型，由 AI 把整段概念翻譯、擴寫並融合風格設定，輸出「先中文說明、再分隔線、最後英文提示詞」的中英對照結果——這才是真正可以直接貼給圖片模型使用的正式提示詞。</p>
+    <div class="tip">如果只是想快速看一下關鍵字組合，用「組成提示詞」就好；真的要拿去生圖，建議走「送給 AI 優化」取得完整翻譯過的英文提示詞。</div>
+  </div>
+
+  <div class="card">
+    <h2>已儲存的提示詞</h2>
+    <p>「已儲存的提示詞」是一個留在瀏覽器裡的紀錄清單，<strong>按「儲存」不會下載任何檔案</strong>，只是把目前分頁已組成的提示詞（連同 AI 優化結果，若有）存成一筆有名字的紀錄。</p>
+    <ol>
+      <li>在儲存名稱欄位打一個好記的名字（留白會自動取名），按「儲存」</li>
+      <li>清單中每一筆紀錄可以「載入」（會自動切換回對應的目標模型分頁並覆蓋欄位）、「複製」、「下載 .txt」或「刪除」</li>
+      <li>取相同名字再按一次「儲存」會詢問是否要覆蓋既有紀錄</li>
+    </ol>
+    <div class="tip">「儲存」＝存進這台瀏覽器的清單；「下載 .txt」才會真的產生一個檔案到你的下載資料夾。兩者是分開的動作。</div>
+  </div>
+
+  <div class="card">
+    <h2>送給 AI 優化（選用，需自備 API 金鑰）</h2>
+    <p>填好概念與風格設定之後，可以直接在本工具呼叫你自己的語言模型 API，取得針對目前分頁模型優化過的中英對照提示詞。</p>
+    <ol>
+      <li>展開「API 連線設定」，選擇服務商（Claude／OpenAI／Gemini／OpenRouter），填入你自己申請的 API 金鑰；模型欄有預設值，也可以自行改成你想用的模型 ID</li>
+      <li>按「🚀 送給 AI 優化」</li>
+      <li>優化結果會顯示在「AI 優化結果」區塊，可按「複製 AI 結果」使用</li>
+    </ol>
+    <div class="tip">API 金鑰要自己到各服務商網站申請，使用時依你與該服務商的方案計費，本工具不會向你收費，也不會經手你的金鑰——金鑰只存在你這台電腦的瀏覽器，且直接連到服務商官方 API，不會經過本工具以外的任何伺服器。</div>
+  </div>
+
+  <div class="card">
+    <h2>🔑 授權序號</h2>
+    <p>本工具需先輸入授權序號並按「確認」驗證通過，才能使用整個工具（不是只鎖某個功能）。序號自第一次驗證起提供 <strong>12 個月</strong>使用期限，驗證結果每次開啟頁面都會即時向授權伺服器重新確認，並每 20 分鐘在背景重新驗證一次——序號到期時，畫面會在最多 20 分鐘內自動重新鎖定。</p>
+    <ul>
+      <li>序號輸入一次後會記在這台瀏覽器裡，下次開啟不用重新輸入（除非已逾期）</li>
+      <li>「無法連線授權伺服器」：請先檢查網路連線；若持續發生，可能是授權伺服器尚未設定完成，請聯繫工具提供者</li>
+      <li>「已逾使用期限」：代表這組序號的 12 個月使用期限已到，請向工具提供者索取新的授權序號</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>隱私說明</h2>
+    <ul>
+      <li>你填寫的概念與風格設定、組成的提示詞與「已儲存的提示詞」清單都只存在自己瀏覽器的 localStorage，關閉分頁後下次打開仍會保留，但不會傳送到任何伺服器；換一台電腦或清除瀏覽器資料就會不見，請自行用「下載 .txt」備份重要內容</li>
+      <li>複製提示詞後，貼到哪個圖片生成服務、該服務如何處理這些文字，就依該服務自己的隱私政策規範，與本工具無關</li>
+      <li>API 金鑰同樣只存在瀏覽器的 localStorage；按下「送給 AI 優化」時，概念與風格設定會直接連線送到你選擇的服務商官方 API，不會經過本工具作者或任何第三方伺服器</li>
+      <li>授權序號驗證會把序號本身傳送給授權伺服器（Google Apps Script）比對是否有效，不會傳送你填寫的任何概念或提示詞內容</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>使用警語</h2>
+    <div class="warn">
+      <strong>請注意：</strong>
+      <ul>
+        <li>本工具的核心功能是把你的畫面概念組織成結構化提示詞；只有你主動填入 API 金鑰並按下「送給 AI 優化」時才會呼叫語言模型，不使用這項功能也能取得關鍵字組裝結果</li>
+        <li>請勿在任何欄位輸入真實個資、公司機密、他人受著作權保護的內容，或不希望被 AI 服務留存的敏感資訊</li>
+        <li>AI 優化結果可能包含錯誤或不精準的描述，貼給圖片模型前請自行檢查；實際生成的圖片內容與品質仍取決於你使用的圖片生成服務</li>
+        <li>使用「送給 AI 優化」功能所產生的 API 費用由你與所選服務商的方案自行負擔，本工具不會向你收費</li>
+        <li>本工具與創作者不對使用本工具產生提示詞後所生成的任何圖片內容負責</li>
+        <li>僅供教學、課程及個人使用，禁止未經授權公開發布、販售或商業化使用</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>創作者資料</h2>
+    <p><strong>Mark Tsai（蔡豐全）</strong></p>
+    <p>聯絡信箱：<a href="mailto:tsaimark@gmail.com">tsaimark@gmail.com</a></p>
+
+    <h3>專長</h3>
+    <p>銷售數據分析、AI 工具運用、政府補助計畫申請、創業、跨境電商</p>
+
+    <h3>證照</h3>
+    <ul>
+      <li>青創總會 創業輔導顧問師班（2013）</li>
+      <li>青創總會 網路行銷講師培訓班（2014）</li>
+      <li>阿里巴巴 P4P 認證講師（2016）</li>
+      <li>iCap 訓練規劃與評量職能基準課程（2017）</li>
+      <li>iCap 職能導向課程申請認證實作班（2023）</li>
+      <li>iPAS AI 應用規劃師－初級（2025）</li>
+      <li>新北市社會局社區數位陪伴員（2025）</li>
+    </ul>
+
+    <h3>經歷</h3>
+    <ul>
+      <li>勞動力發展署桃竹苗分署 創業顧問（2017－迄今）</li>
+      <li>勞動力發展署（北北基）小型企業人力提升計畫 顧問（2019－迄今）</li>
+      <li>勞動力發展署（桃竹苗）小型企業人力提升計畫 顧問（2019－迄今）</li>
+      <li>農業部農業科技司「科技農企業雙軸轉型躍升發展」科技計畫 業師（2025－2026）</li>
+      <li>勞動力發展署 企業人力資源提升計畫 審查委員（2024）</li>
+      <li>勞動力發展署 職前訓練評鑑計畫 委員（2022）</li>
+      <li>勞動部桃竹苗分署－桃竹苗區域運籌人力資源整合服務計畫 顧問（2022－2023）</li>
+      <li>經濟部中小企業處 SBIR 海選專案 評審委員（2019－2024）</li>
+      <li>勞動力發展署 數位學習課程清單審查會議 審查委員（2024－2025）</li>
+      <li>輔仁大學創新跨領域學院 課務委員（2024－2025）</li>
+      <li>台北市進出口商業同業公會 跨境電商生態村 顧問</li>
+      <li>台灣網商協會 顧問</li>
+      <li>中華職能開發策進會 顧問（2018－2020）</li>
+      <li>新北市汽車美容人員職業工會 顧問（2023－迄今）</li>
+      <li>中華網路行銷講師協會 顧問（2022－迄今）</li>
+      <li>新北市社企電商基地 輔導顧問（2018－2020）</li>
+      <li>阿里巴巴國際站平台 認證講師（2016）</li>
+      <li>巨匠電腦 跨境電子商務班 講師（2016－2017）</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>授權與使用限制</h2>
+    <p>本工具僅供<strong>教學、課程及個人使用</strong>，禁止未經授權公開發布、販售或商業化使用。如需其他用途，請先取得創作者授權。</p>
+  </div>
+
+</main>
+
+<footer>
+  製作：Mark Tsai｜<a href="index.html">回到工具</a>
+</footer>
+
+</body>
+</html>
