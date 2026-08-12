@@ -278,6 +278,7 @@
       <div class="field"><label for="f_style">風格</label><select id="f_style"></select></div>
       <div class="field"><label for="f_composition">構圖／視角</label><select id="f_composition"></select></div>
       <div class="field"><label for="f_lighting">光線氛圍</label><select id="f_lighting"></select></div>
+      <div class="field"><label for="f_colortone">色調／色彩風格</label><select id="f_colortone"></select></div>
       <div class="field"><label for="f_ratio">長寬比</label><select id="f_ratio"></select></div>
     </div>
 
@@ -616,6 +617,16 @@
     {v:'sharp', zh:'銳利對焦', en:'sharp focus'},
     {v:'colorgrade', zh:'電影級調色', en:'cinematic color grading'}
   ];
+  var COLOR_TONE_OPTIONS = [
+    {v:'warm', zh:'暖色調', en:'warm color palette, golden and amber hues'},
+    {v:'cool', zh:'冷色調', en:'cool color palette, blue and teal hues'},
+    {v:'warmwhite', zh:'黃白調（奶油白）', en:'warm neutral color grading, soft cream and ivory tones'},
+    {v:'vibrant', zh:'高飽和鮮豔', en:'highly saturated vibrant colors, bold punchy palette'},
+    {v:'muted', zh:'低飽和柔霧', en:'desaturated soft muted pastel tones'},
+    {v:'morandi', zh:'莫蘭迪色系', en:'Morandi color palette, muted dusty grayish tones'},
+    {v:'monochrome', zh:'黑白／單色', en:'black and white monochrome, high contrast'},
+    {v:'earth', zh:'大地色系', en:'earthy natural color palette, terracotta and olive tones'}
+  ];
   var NEGATIVE_OPTIONS = [
     {v:'watermark-text', zh:'浮水印／文字／Logo', en:'watermark, text, logo'},
     {v:'blurry-focus', zh:'模糊失焦', en:'blurry, out of focus, low resolution'},
@@ -643,6 +654,7 @@
     var s = optEn(STYLE_OPTIONS, v.style); if(s) tags.push(s);
     var c = optEn(COMPOSITION_OPTIONS, v.composition); if(c) tags.push(c);
     var l = optEn(LIGHTING_OPTIONS, v.lighting); if(l) tags.push(l);
+    var ct = optEn(COLOR_TONE_OPTIONS, v.colortone); if(ct) tags.push(ct);
     (v.quality || []).forEach(function(q){ var e = optEn(QUALITY_OPTIONS, q); if(e) tags.push(e); });
     return tags;
   }
@@ -651,6 +663,7 @@
     var s = optZh(STYLE_OPTIONS, v.style); if(s) tags.push(s);
     var c = optZh(COMPOSITION_OPTIONS, v.composition); if(c) tags.push(c);
     var l = optZh(LIGHTING_OPTIONS, v.lighting); if(l) tags.push(l);
+    var ct = optZh(COLOR_TONE_OPTIONS, v.colortone); if(ct) tags.push(ct);
     (v.quality || []).forEach(function(q){ var z = optZh(QUALITY_OPTIONS, q); if(z) tags.push(z); });
     return tags;
   }
@@ -675,16 +688,16 @@
 
   /* ---------- 內建情境範例（完全虛構，套用時填滿共用欄位） ---------- */
   var PRESETS = [
-    {name:'質感香氛蠟燭產品攝影', concept:'一瓶質感香氛蠟燭放在木質桌面上，搭配幾片乾燥花瓣，營造溫暖悠閒的居家氛圍', style:'photoreal', composition:'closeup', lighting:'studio', ratio:'1:1', quality:['8k','proPhoto','sharp'], negativeTags:['cluttered-bg','human-hands','watermark-text'], negative:''},
-    {name:'奇幻精靈戰士插畫', concept:'一位身穿銀色鎧甲的精靈戰士站在發光的森林入口，手持散發藍色光芒的長劍', style:'conceptart', composition:'medium', lighting:'dramatic', ratio:'16:9', quality:['detailed','award'], negativeTags:['blurry-focus'], negative:'寫實照片風格'},
-    {name:'品牌吉祥物設計', concept:'一隻圓滾滾的橘色貓咪吉祥物，戴著小小的廚師帽，雙手比出 OK 手勢，卡通風格', style:'vector', composition:'centered', lighting:'daylight', ratio:'1:1', quality:['detailed'], negativeTags:[], negative:'陰影過重、真實動物毛髮質感'},
-    {name:'電商運動鞋白底主圖', concept:'一雙白色皮革運動鞋放在純白背景上，展示鞋款材質與細節，適合電商平台商品主圖', style:'ecommerce-white', composition:'closeup', lighting:'studio', ratio:'1:1', quality:['8k','proPhoto','sharp'], negativeTags:['watermark-text','cluttered-bg','human-hands'], negative:''}
+    {name:'質感香氛蠟燭產品攝影', concept:'一瓶質感香氛蠟燭放在木質桌面上，搭配幾片乾燥花瓣，營造溫暖悠閒的居家氛圍', style:'photoreal', composition:'closeup', lighting:'studio', colortone:'warmwhite', ratio:'1:1', quality:['8k','proPhoto','sharp'], negativeTags:['cluttered-bg','human-hands','watermark-text'], negative:''},
+    {name:'奇幻精靈戰士插畫', concept:'一位身穿銀色鎧甲的精靈戰士站在發光的森林入口，手持散發藍色光芒的長劍', style:'conceptart', composition:'medium', lighting:'dramatic', colortone:'cool', ratio:'16:9', quality:['detailed','award'], negativeTags:['blurry-focus'], negative:'寫實照片風格'},
+    {name:'品牌吉祥物設計', concept:'一隻圓滾滾的橘色貓咪吉祥物，戴著小小的廚師帽，雙手比出 OK 手勢，卡通風格', style:'vector', composition:'centered', lighting:'daylight', colortone:'vibrant', ratio:'1:1', quality:['detailed'], negativeTags:[], negative:'陰影過重、真實動物毛髮質感'},
+    {name:'電商運動鞋白底主圖', concept:'一雙白色皮革運動鞋放在純白背景上，展示鞋款材質與細節，適合電商平台商品主圖', style:'ecommerce-white', composition:'closeup', lighting:'studio', colortone:'', ratio:'1:1', quality:['8k','proPhoto','sharp'], negativeTags:['watermark-text','cluttered-bg','human-hands'], negative:''}
   ];
 
   /* ---------- 狀態：共用欄位（單一物件，非分頁各自獨立）＋各分頁的組成結果／AI 結果 ---------- */
   var STATE_KEY = 'imgPromptState';
   var state = loadState();
-  function defaultFields(){ return {productUrl:'', concept:'', style:'', composition:'', lighting:'', ratio:'', quality:[], negativeTags:[], negative:''}; }
+  function defaultFields(){ return {productUrl:'', concept:'', style:'', composition:'', lighting:'', colortone:'', ratio:'', quality:[], negativeTags:[], negative:''}; }
   function defaultState(){
     var assembled = {}, aiOut = {}, videoOut = {};
     TARGET_ORDER.forEach(function(t){ assembled[t] = ''; aiOut[t] = ''; videoOut[t] = ''; });
@@ -778,6 +791,7 @@
     $('f_style').value = state.fields.style || '';
     $('f_composition').value = state.fields.composition || '';
     $('f_lighting').value = state.fields.lighting || '';
+    $('f_colortone').value = state.fields.colortone || '';
     $('f_ratio').value = state.fields.ratio || '';
     $('f_negative').value = state.fields.negative || '';
     renderCheckboxGroup('qualityGroup', QUALITY_OPTIONS, 'quality');
@@ -788,6 +802,7 @@
     fillSelect($('f_style'), STYLE_OPTIONS, '不指定');
     fillSelect($('f_composition'), COMPOSITION_OPTIONS, '不指定');
     fillSelect($('f_lighting'), LIGHTING_OPTIONS, '不指定');
+    fillSelect($('f_colortone'), COLOR_TONE_OPTIONS, '不指定');
     fillSelect($('f_ratio'), RATIO_OPTIONS, '不指定');
 
     $('f_producturl').addEventListener('input', function(){ state.fields.productUrl = this.value; persistState(); });
@@ -795,13 +810,14 @@
     $('f_style').addEventListener('change', function(){ state.fields.style = this.value; persistState(); });
     $('f_composition').addEventListener('change', function(){ state.fields.composition = this.value; persistState(); });
     $('f_lighting').addEventListener('change', function(){ state.fields.lighting = this.value; persistState(); });
+    $('f_colortone').addEventListener('change', function(){ state.fields.colortone = this.value; persistState(); });
     $('f_ratio').addEventListener('change', function(){ state.fields.ratio = this.value; persistState(); });
     $('f_negative').addEventListener('input', function(){ state.fields.negative = this.value; persistState(); });
   }
 
   function fieldsHasContent(){
     var f = state.fields;
-    return !!(f.productUrl || f.concept || f.style || f.composition || f.lighting || f.ratio || (f.quality && f.quality.length) || (f.negativeTags && f.negativeTags.length) || f.negative);
+    return !!(f.productUrl || f.concept || f.style || f.composition || f.lighting || f.colortone || f.ratio || (f.quality && f.quality.length) || (f.negativeTags && f.negativeTags.length) || f.negative);
   }
 
   /* ---------- 組成提示詞（純前端關鍵字組裝，不需金鑰、不連網；概念文字本身不會被翻譯） ---------- */
@@ -889,7 +905,7 @@
     var preset = PRESETS[parseInt(idx, 10)];
     state.fields = {
       productUrl: '', concept: preset.concept || '', style: preset.style || '', composition: preset.composition || '',
-      lighting: preset.lighting || '', ratio: preset.ratio || '', quality: (preset.quality || []).slice(),
+      lighting: preset.lighting || '', colortone: preset.colortone || '', ratio: preset.ratio || '', quality: (preset.quality || []).slice(),
       negativeTags: (preset.negativeTags || []).slice(), negative: preset.negative || ''
     };
     persistState();
@@ -1047,7 +1063,16 @@
     report.innerHTML = '<div class="ok">正在抓取網頁內容…</div>';
     try{
       var pageResp = await fetch(READER_PREFIX + url, {signal: AbortSignal.timeout(30000)});
-      if(!pageResp.ok) throw new Error('抓取失敗（狀態碼 ' + pageResp.status + '），這個網站可能不支援自動抓取');
+      if(!pageResp.ok){
+        // r.jina.ai 錯誤時會回傳 JSON（含 message／readableMessage 說明實際原因，例如網域無法解析、URL 格式錯誤），
+        // 比單純的 HTTP 狀態碼有用得多，能解析就優先顯示；解析不到才退回顯示狀態碼
+        var reason = '';
+        try{
+          var errBody = JSON.parse(await pageResp.text());
+          reason = errBody.readableMessage || errBody.message || '';
+        }catch(e){}
+        throw new Error('抓取失敗（狀態碼 ' + pageResp.status + '）' + (reason ? '：' + reason : '，這個網站可能不支援自動抓取'));
+      }
       var pageText = await pageResp.text();
       if(!pageText || pageText.trim().length < 30) throw new Error('抓到的內容太少，這個網站可能需要登入或內容由 JavaScript 動態載入，請改為手動輸入概念描述');
 
@@ -1094,7 +1119,7 @@
     lines.push('你是一位專業的 AI 繪圖提示詞工程師。請把下面的概念與風格設定，優化成適合「' + tg.label + '」使用的圖片生成提示詞。');
     lines.push('');
     lines.push('概念（使用者原始描述）：' + v.concept);
-    if(tagsZh.length) lines.push('指定風格／構圖／光線／畫質（請自然融入，不要生硬條列）：' + tagsZh.join('、'));
+    if(tagsZh.length) lines.push('指定風格／構圖／光線／色調／畫質（請自然融入，不要生硬條列）：' + tagsZh.join('、'));
     var ratioOpt = optFind(RATIO_OPTIONS, v.ratio);
     if(ratioOpt) lines.push('長寬比：' + ratioOpt.zh);
     if(neg.zh.length) lines.push('不想出現的元素：' + neg.zh.join('、'));
