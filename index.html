@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI 繪圖提示詞工廠 · 圖片生成提示詞優化</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ec4899">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
 <style>
   :root{
     --bg:#170b12;
@@ -76,6 +79,8 @@
   .gate-status.ok{background:var(--accent-soft);color:var(--accent)}
   .gate-status.bad{background:rgba(248,113,113,.12);color:var(--red)}
   .gate-status.pending{opacity:.85}
+  .license-badge{font-family:var(--font-mono);font-size:12px;font-weight:700;padding:6px 12px;border-radius:6px;background:var(--accent-soft);color:var(--accent);white-space:nowrap;}
+  .license-badge.warn{background:var(--gold-soft);color:var(--gold);}
   .gate-mini{color:var(--text-faint);font-family:var(--font-mono);font-size:12px;}
   .gate-mini.bad{color:var(--red);font-weight:bold}
 
@@ -187,6 +192,8 @@
   .warn-box li{margin-bottom:5px;}
   .footer-meta{max-width:820px;margin:0 auto;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;font-size:12.5px;color:var(--text-faint);font-family:var(--font-mono);}
   .footer-meta a{color:var(--text-dim);}
+  .footer-link-btn{background:none;border:none;padding:0;margin:0;color:var(--text-dim);font:inherit;font-family:inherit;cursor:pointer;text-decoration:underline;}
+  .footer-link-btn:hover{color:var(--accent);}
 
   .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);background:var(--panel-raised);border:1px solid var(--accent);color:var(--text);padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:.2s;z-index:3000;}
   .toast.show{opacity:1;transform:translate(-50%,0);}
@@ -235,7 +242,10 @@
 
 <div class="topbar">
   <div class="brand"><span class="dot"></span><strong>AI 繪圖提示詞工廠</strong></div>
-  <nav><a href="manual.html">操作手冊</a></nav>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <span id="licenseBadge" class="license-badge" style="display:none;"></span>
+    <nav><a href="manual.html">操作手冊</a></nav>
+  </div>
 </div>
 
 <div class="hero">
@@ -392,6 +402,7 @@
   </div>
   <div class="footer-meta">
     <span>製作：Mark Tsai｜<a href="mailto:tsaimark@gmail.com">tsaimark@gmail.com</a></span>
+    <button type="button" id="installBtn" class="footer-link-btn">📲 加入主畫面</button>
     <a href="manual.html">操作手冊 →</a>
   </div>
 </footer>
@@ -441,6 +452,38 @@
   setInterval(fetchMarquee, REFRESH_MS);
 })();
 
+/* ================= PWA 加入主畫面（獨立運作，跟下方主程式邏輯無關） ================= */
+(function () {
+  'use strict';
+  var deferredPrompt = null;
+  var btn = document.getElementById('installBtn');
+
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferredPrompt = e;
+  });
+  window.addEventListener('appinstalled', function () {
+    deferredPrompt = null;
+  });
+
+  if (btn) {
+    btn.addEventListener('click', function () {
+      if (!deferredPrompt) {
+        if (typeof showToast === 'function') showToast('目前瀏覽器不支援安裝，或已安裝過');
+        return;
+      }
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function () { deferredPrompt = null; });
+    });
+  }
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('service-worker.js').catch(function () {});
+    });
+  }
+})();
+
 /* ================= 序號授權閘門（獨立運作，鎖定整個工具；跟下方主程式邏輯無關） ================= */
 (function () {
   'use strict';
@@ -453,6 +496,7 @@
   var toggleBtn = document.getElementById('btnGateToggle');
   var confirmBtn = document.getElementById('btnGateConfirm');
   var statusEl = document.getElementById('gateStatus');
+  var badgeEl = document.getElementById('licenseBadge');
 
   function loadSerial() { return localStorage.getItem(STORAGE_KEY) || ''; }
   function saveSerial(s) { localStorage.setItem(STORAGE_KEY, s); }
@@ -497,11 +541,25 @@
     });
   }
 
+  function daysLeft(license) {
+    if (!license.expiresAt) return null;
+    return Math.ceil((new Date(license.expiresAt) - new Date()) / 86400000);
+  }
   function fmtDays(license) {
     if (!license.expiresAt) return '';
     var expireStr = new Date(license.expiresAt).toLocaleDateString();
-    var days = Math.ceil((new Date(license.expiresAt) - new Date()) / 86400000);
+    var days = daysLeft(license);
     return '剩餘 ' + Math.max(days, 0) + ' 天可用（至 ' + expireStr + '）';
+  }
+
+  function updateBadge(license) {
+    if (!badgeEl) return;
+    var days = daysLeft(license);
+    if (days === null) { badgeEl.style.display = 'none'; return; }
+    badgeEl.textContent = '🔑 剩餘 ' + Math.max(days, 0) + ' 天';
+    badgeEl.title = '授權序號使用期限至 ' + new Date(license.expiresAt).toLocaleDateString();
+    badgeEl.className = 'license-badge' + (days <= 7 ? ' warn' : '');
+    badgeEl.style.display = 'inline-block';
   }
 
   function unlock(license) {
@@ -509,12 +567,14 @@
     statusEl.className = 'gate-status ok';
     statusEl.textContent = '✓ ' + label;
     gate.classList.add('hidden');
+    updateBadge(license);
   }
 
   function lock(reasonText) {
     statusEl.className = 'gate-status bad';
     statusEl.textContent = '✗ ' + reasonText;
     gate.classList.remove('hidden');
+    if (badgeEl) badgeEl.style.display = 'none';
   }
 
   function runCheck(serial, opts) {

@@ -36,6 +36,10 @@
 - **已完成部署（2026-08-12）**。`index.html` 的 `LICENSE_CHECK_URL` 已填入實際部署網址：`https://script.google.com/macros/s/AKfycbwRQJLIQrKj99TUB3oxch1yuytQI32HD0B9eF965Pf3krYfEMMmrwMRLFvL76tPmdDO/exec`。`doGet`／`doPost` 皆已用 curl／Node `fetch()` 驗證正常（假序號正確回傳 `serial_not_found`；Sheet 上的測試序號 `mark0131` 正確回傳 `valid:true` 及對應的啟用/到期日期）。
 - **部署過程**：複製貼上 `Code.gs` 到 Apps Script 編輯器容易出現語法錯誤是已知踩坑，這次改用 `clasp login`（使用者自行在獨立終端機完成 OAuth，Claude 無法代勞）→ 使用者手動開啟 Sheet 的「擴充功能 → Apps Script」建立綁定腳本專案並提供 Script ID → `clasp clone` → 覆蓋 `Code.js` → `clasp push --force` 一次成功，跳過複製貼上；部署為 Web App（新增部署，非更新既有部署，因為這是這個腳本專案第一次真正部署成 Web App）仍由使用者手動完成（涉及 OAuth 同意畫面，無法自動化）。**驗證 `doPost` 時遇到的坑**：用單一 Node 腳本先後打 GET 再 POST，第二次 POST 的結果被污染成回傳了 `doGet` 的健康檢查訊息——不是部署壞了，是同一 Node 行程裡連續 `fetch()` 呼叫時的連線/重導向快取造成的假象；改成各自獨立的 Node 呼叫、且用 `redirect:'manual'` 先確認第一段 302 沒問題，再手動 `fetch()` 那組不重複使用的 `user_content_key` echo 網址，就能穩定拿到正確結果。
 
+## 序號剩餘天數持續顯示（2026-08-13）
+
+原本「剩餘 N 天可用」只出現在 `#gateStatus` 裡、驗證通過那一瞬間，遮罩一加上 `.hidden` 整段文字就跟著消失，使用者解鎖後完全看不到還剩幾天。改法：`.topbar` 內 `nav` 前新增常駐徽章 `#licenseBadge`（🔑 剩餘 N 天，hover 顯示到期日；`.license-badge`／`.license-badge.warn` 用 `--accent-soft`/`--accent` 與 `rgba(251,191,36,.14)`/`#fbbf24` 兩色），`unlock()` 時同步寫入、`lock()`（含每 20 分鐘背景重驗失敗時）隱藏；剩餘 ≤7 天變色。已用 Chrome 對真實部署端點實測，序號 `mark0131` 解鎖後正確顯示「🔑 剩餘 505 天」。這個修法同步套用到 `ai-prompt-generator`、`ai-music-prompt-studio`（同一套序號授權骨架的姊妹專案，發現這是系統性缺口後應使用者要求一併補上）。
+
 ## 頂部共用跑馬燈
 
 `#marqueeBar` 內容抓自工作區既有的共用授權伺服器（`https://script.google.com/macros/s/AKfycbwKX0.../exec`，與 `Prompt/index.html`、`ai-prompt-generator`、`ai-video-studio` 系列共用同一個 Google Sheet），做法完全比照 `ai-prompt-generator/index.html` 的獨立跑馬燈邏輯——**跟本工具自己的序號授權後端是兩個互不相干的系統**：頁面載入時直接 POST 一個空序號給共用端點，`localStorage` key `imgPromptMarquee`，每 20 分鐘背景重抓一次。改跑馬燈內容直接編輯共用 Sheet 即可，不需要重新部署任何 Apps Script。
@@ -86,6 +90,10 @@ node --check _check.js
 ## GitHub 與線上部署
 
 公開 repo：<https://github.com/M255525/ai-image-prompt-studio>（與 `ai-prompt-generator` 同樣模式；使用者已確認公開 repo 沒問題，即使 `CLAUDE.md`／`SETUP-授權伺服器設定.md` 裡含有授權後端 Google Sheet 的網址——該連結本身不代表任何人能編輯/檢視，取決於 Sheet 自己的分享設定）。已啟用 GitHub Pages（`gh api repos/.../pages` 建立，source 為 `master` 分支根目錄），線上網址：<https://m255525.github.io/ai-image-prompt-studio/>。`README.md` 是給 GitHub repo 首頁看的說明文件，與 `CLAUDE.md`（給 Claude Code 的開發筆記）分工不同，兩者都要在功能變動時同步更新。
+
+## 加入主畫面（PWA，2026-08-14 新增）
+
+比照 `expense-tracker-pwa`／`ai-prompt-generator`（同一次一併加上）的做法：`manifest.json`＋`icons/`（洋紅 `#ec4899` 背景「圖」字圖示）＋`service-worker.js`（network-first＋同源快取備援，跨網域請求略過，不需要像 `expense-tracker-pwa` 那樣每次改動升版 `CACHE_NAME`）。頁尾 `.footer-meta` 新增「📲 加入主畫面」按鈕（`#installBtn`），獨立 IIFE，跟序號授權閘門互不相依。已用 Playwright 實測 Chromium 觸發 `beforeinstallprompt`、SW 成功註冊。
 
 ## 本次未做（後續視需要再處理）
 
