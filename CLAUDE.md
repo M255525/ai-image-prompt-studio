@@ -100,6 +100,8 @@ node --check _check.js
 
 **回饋機制與快取踩坑修正（2026-08-14，使用者實測回報「加入主畫面沒有功能」才發現兩層問題）**：(1) 原本無 `showToast` 時用「暫時置換按鈕文字」當提示，在工具列裡太不明顯，使用者完全沒注意到訊息出現過——改成 `window.alert(fallbackMessage())`，`deferredPrompt.prompt()` 也包 try/catch。(2) 改完使用者仍回報沒反應，追查發現 `service-worker.js` 的 `fetch(event.request)` 沒有繞過瀏覽器 HTTP 快取——GitHub Pages 對回應下 `Cache-Control: max-age=600`，10 分鐘內「network-first」名不符實，可能吃到舊版內容重新存進 Cache Storage。改成 `fetch(event.request, {cache:'reload'})` 強制略過 HTTP 快取，`CACHE_NAME` 同步升版 v1→v2 清掉已污染的快取。這是跟 `expense-tracker-pwa` 那次「install 階段 `cache.addAll()` 忘記加 `{cache:'reload'}`」同一個 bug class 的 runtime 版本，細節見 [[pwa-install-rollout]]。
 
+**回饋機制第二個潛藏 bug（2026-08-16，使用者回報 SocialPost「按鈕鍵但沒有對應功能」，排查後發現本工具與另外兩個姊妹專案都中招）**：上面「回饋機制與快取踩坑修正」那次只修了**沒有** `showToast()` 的 6 個專案（改用 `alert()`）；本工具**有** `showToast()`，被歸類為「沒有這個問題」而跳過——但這個判斷本身是錯的。PWA 安裝腳本是**獨立的 `<script>` 區塊／獨立 IIFE**，而 `showToast()` 是宣告在**另一個**（主程式的）IIFE 裡，函式作用域不會跨 `<script>` 區塊或跨 IIFE 共享，所以 `typeof showToast === 'function'` 在安裝腳本裡永遠是 `false`——`deferredPrompt` 為 `null`（例如瀏覽器沒有觸發 `beforeinstallprompt`，或使用者之前已經安裝過/略過安裝提示）時，點按鈕**完全沒有任何回饋、也沒有任何主控台錯誤**，跟「按鈕鍵但沒有對應功能」的回報完全吻合。修法：安裝腳本不再依賴外部 `showToast`，改成自己實作一個 `notify(msg)`（直接抓 `#toast` 這個 DOM 元素、手動套用 `.show` class），`deferredPrompt.prompt()` 也補上 try/catch。**教訓：判斷「這個專案有沒有回饋機制的 bug」不能只看「有沒有 `showToast` 這個函式存在於檔案裡」，要看安裝腳本能不能**真的**在執行當下呼叫到它——`<script>` 區塊邊界和 IIFE 邊界都會擋住跨區塊的函式可見性，這個坑之後只要是「主程式定義一個工具函式、獨立掛載的小功能想沿用」的情境都可能重踩。**已同步修正的姊妹專案：`ai-prompt-generator`、`ai-music-prompt-studio`（同一套安裝腳本、同一個 bug、同一次修正）。
+
 ## 本次未做（後續視需要再處理）
 
 - exe 尚未實機雙擊驗證（Smart App Control 延遲封鎖，見上）。
