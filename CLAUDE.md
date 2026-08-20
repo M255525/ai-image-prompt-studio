@@ -93,6 +93,8 @@ node --check _check.js
 
 公開 repo：<https://github.com/M255525/ai-image-prompt-studio>（與 `ai-prompt-generator` 同樣模式；使用者已確認公開 repo 沒問題，即使 `CLAUDE.md`／`SETUP-授權伺服器設定.md` 裡含有授權後端 Google Sheet 的網址——該連結本身不代表任何人能編輯/檢視，取決於 Sheet 自己的分享設定）。已啟用 GitHub Pages（`gh api repos/.../pages` 建立，source 為 `master` 分支根目錄），線上網址：<https://m255525.github.io/ai-image-prompt-studio/>。`README.md` 是給 GitHub repo 首頁看的說明文件，與 `CLAUDE.md`（給 Claude Code 的開發筆記）分工不同，兩者都要在功能變動時同步更新。
 
+**訪客次數計數器（2026-08-21 新增）**：頁尾 `.footer-meta` 加了 `visitor-badge.laobi.icu` 的 SVG badge（`<img>` 直接嵌入，`page_id=m255525.ai-image-prompt-studio`，免金鑰免後端），做法比照 `SocialPost` 已驗證過的模式，與 `ai-music-prompt-studio`／`ai-prompt-generator` 同一次一併加上。
+
 ## 加入主畫面（PWA，2026-08-14 新增）
 
 比照 `expense-tracker-pwa`／`ai-prompt-generator`（同一次一併加上）的做法：`manifest.json`＋`icons/`（洋紅 `#ec4899` 背景「圖」字圖示）＋`service-worker.js`（network-first＋同源快取備援，跨網域請求略過，不需要像 `expense-tracker-pwa` 那樣每次改動升版 `CACHE_NAME`）。頁尾 `.footer-meta` 新增「📲 加入主畫面」按鈕（`#installBtn`），獨立 IIFE，跟序號授權閘門互不相依。已用 Playwright 實測 Chromium 觸發 `beforeinstallprompt`、SW 成功註冊。
