@@ -44,6 +44,8 @@
 
 `#marqueeBar` 內容抓自工作區既有的共用授權伺服器（`https://script.google.com/macros/s/AKfycbwKX0.../exec`，與 `Prompt/index.html`、`ai-prompt-generator`、`ai-video-studio` 系列共用同一個 Google Sheet），做法完全比照 `ai-prompt-generator/index.html` 的獨立跑馬燈邏輯——**跟本工具自己的序號授權後端是兩個互不相干的系統**：頁面載入時直接 POST 一個空序號給共用端點，`localStorage` key `imgPromptMarquee`，每 20 分鐘背景重抓一次。改跑馬燈內容直接編輯共用 Sheet 即可，不需要重新部署任何 Apps Script。
 
+**2026-08-20 更新（`Code.gs` 未改動、不需重新部署）**：`render()` 新增 `lastKey`（`JSON.stringify(items)`）比對，內容沒變就不重繪，CSS animation 不再被重置歸零重跑；新增 `appendParsedText()`／`buildTrackContent()` 支援 `[文字](https://...)` 連結語法（`createTextNode` 組 DOM，避免 XSS），資料格式仍是純字串陣列，向下相容。已 commit＋push（GitHub Pages 自動重新部署）。
+
 ## 響應式設計（桌機／平板／手機）
 
 版型從一開始就採用流體設計（`main`/`.hero p.lead` 皆為 `max-width` 而非固定寬、按鈕與 chip 皆 `flex-wrap`），本次針對桌機／平板／手機三種寬度做過完整稽核（Playwright 在此環境的 `browser_resize` 實際套用的視窗寬度會被畫面縮放係數影響、跟請求的數字不一致——不要假設 resize 後 `window.innerWidth` 等於你傳入的寬度，稽核時務必用 `window.innerWidth` 實際讀值，不要用請求值）：
