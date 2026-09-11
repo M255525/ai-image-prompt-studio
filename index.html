@@ -334,6 +334,12 @@
     </div>
     <p class="panel-hint">串接你自己的語言模型 API，把概念與風格設定送出，取得針對目前分頁模型優化過的正式提示詞——先是一段中文說明供你確認語意，接著是可直接貼給圖片模型使用的英文提示詞。</p>
 
+    <div class="field">
+      <label for="f_existingprompt">既有照片提示詞補充（選填）</label>
+      <textarea id="f_existingprompt" placeholder="貼上你已經在使用的圖片生成提示詞（例如某張既有照片原本的提示詞），AI 優化時會以此為基礎進行修改與補充，而不是從概念描述重新生成一份全新提示詞"></textarea>
+      <p class="field-hint">留空則以上方「概念描述」與風格設定為主，產生全新的提示詞；填寫後，AI 會盡量保留這段既有提示詞的內容與精神，只依你在「概念描述」補充的調整方向，以及風格／構圖／光線／色調／負面提示詞等設定進行修改與補充。</p>
+    </div>
+
     <details class="api-settings">
       <summary>API 連線設定</summary>
       <div class="api-grid">
@@ -344,7 +350,10 @@
           <input type="text" id="aiModel" placeholder="模型名稱">
         </label>
         <label class="full">API 金鑰
-          <input type="password" id="aiKey" placeholder="貼上你的 API Key" autocomplete="off">
+          <span style="position:relative;display:block;">
+            <input type="password" id="aiKey" placeholder="貼上你的 API Key" autocomplete="off" style="padding-right:34px;box-sizing:border-box;">
+            <button type="button" onclick="var i=this.previousElementSibling;i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁':'🙈';" title="顯示／隱藏金鑰" aria-label="顯示／隱藏金鑰" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:15px;padding:4px 6px;opacity:.65;line-height:1;">👁</button>
+          </span>
         </label>
       </div>
       <p class="api-note">金鑰只存在這台電腦的瀏覽器（localStorage），不會送到本工具以外的任何地方；按下「送給 AI 優化」時，概念與風格設定會直接傳送給你選擇的服務商 API。請勿在共用電腦上填寫金鑰。</p>
@@ -829,7 +838,7 @@
   /* ---------- 狀態：共用欄位（單一物件，非分頁各自獨立）＋各分頁的組成結果／AI 結果 ---------- */
   var STATE_KEY = 'imgPromptState';
   var state = loadState();
-  function defaultFields(){ return {productUrl:'', concept:'', style:'', composition:'', lighting:'', colortone:'', ratio:'', quality:[], negativeTags:[], negative:''}; }
+  function defaultFields(){ return {productUrl:'', concept:'', style:'', composition:'', lighting:'', colortone:'', ratio:'', quality:[], negativeTags:[], negative:'', existingPrompt:''}; }
   function defaultState(){
     var assembled = {}, aiOut = {}, videoOut = {};
     TARGET_ORDER.forEach(function(t){ assembled[t] = ''; aiOut[t] = ''; videoOut[t] = ''; });
@@ -926,6 +935,7 @@
     $('f_colortone').value = state.fields.colortone || '';
     $('f_ratio').value = state.fields.ratio || '';
     $('f_negative').value = state.fields.negative || '';
+    $('f_existingprompt').value = state.fields.existingPrompt || '';
     renderCheckboxGroup('qualityGroup', QUALITY_OPTIONS, 'quality');
     renderCheckboxGroup('negativeGroup', NEGATIVE_OPTIONS, 'negativeTags');
   }
@@ -945,11 +955,12 @@
     $('f_colortone').addEventListener('change', function(){ state.fields.colortone = this.value; persistState(); });
     $('f_ratio').addEventListener('change', function(){ state.fields.ratio = this.value; persistState(); });
     $('f_negative').addEventListener('input', function(){ state.fields.negative = this.value; persistState(); });
+    $('f_existingprompt').addEventListener('input', function(){ state.fields.existingPrompt = this.value; persistState(); });
   }
 
   function fieldsHasContent(){
     var f = state.fields;
-    return !!(f.productUrl || f.concept || f.style || f.composition || f.lighting || f.colortone || f.ratio || (f.quality && f.quality.length) || (f.negativeTags && f.negativeTags.length) || f.negative);
+    return !!(f.productUrl || f.concept || f.style || f.composition || f.lighting || f.colortone || f.ratio || (f.quality && f.quality.length) || (f.negativeTags && f.negativeTags.length) || f.negative || f.existingPrompt);
   }
 
   /* ---------- 組成提示詞（純前端關鍵字組裝，不需金鑰、不連網；概念文字本身不會被翻譯） ---------- */
@@ -1038,7 +1049,7 @@
     state.fields = {
       productUrl: '', concept: preset.concept || '', style: preset.style || '', composition: preset.composition || '',
       lighting: preset.lighting || '', colortone: preset.colortone || '', ratio: preset.ratio || '', quality: (preset.quality || []).slice(),
-      negativeTags: (preset.negativeTags || []).slice(), negative: preset.negative || ''
+      negativeTags: (preset.negativeTags || []).slice(), negative: preset.negative || '', existingPrompt: ''
     };
     persistState();
     renderFieldsFromState();
@@ -1262,10 +1273,18 @@
     } else {
       formatRule = '請用 1～3 句流暢的英文自然語言描述句（不需要任何參數語法），把風格設定自然地寫進句子裡，不要條列標籤。';
     }
+    var hasExisting = !!(v.existingPrompt && v.existingPrompt.trim());
     var lines = [];
-    lines.push('你是一位專業的 AI 繪圖提示詞工程師。請把下面的概念與風格設定，優化成適合「' + tg.label + '」使用的圖片生成提示詞。');
-    lines.push('');
-    lines.push('概念（使用者原始描述）：' + v.concept);
+    if(hasExisting){
+      lines.push('你是一位專業的 AI 繪圖提示詞工程師。使用者已經有一段用來生成某張既有照片的提示詞，現在想針對這段既有提示詞進行補充與修改，而不是整個重新生成。請以下面的「既有照片提示詞」為基礎進行補充修改，優化成適合「' + tg.label + '」使用的圖片生成提示詞，並盡量保留既有提示詞原本的核心內容與精神。');
+      lines.push('');
+      lines.push('既有照片提示詞（請以此為基礎進行補充修改）：' + v.existingPrompt.trim());
+      if(v.concept && v.concept.trim()) lines.push('補充說明／想調整或加入的內容：' + v.concept);
+    } else {
+      lines.push('你是一位專業的 AI 繪圖提示詞工程師。請把下面的概念與風格設定，優化成適合「' + tg.label + '」使用的圖片生成提示詞。');
+      lines.push('');
+      lines.push('概念（使用者原始描述）：' + v.concept);
+    }
     if(tagsZh.length) lines.push('指定風格／構圖／光線／色調／畫質（請自然融入，不要生硬條列）：' + tagsZh.join('、'));
     var ratioOpt = optFind(RATIO_OPTIONS, v.ratio);
     if(ratioOpt) lines.push('長寬比：' + ratioOpt.zh);
@@ -1291,7 +1310,9 @@
     if(!isLatin1(model)){ report.innerHTML = '<div class="bad">模型名稱包含不可用的字元，請確認只填入英數字模型 ID</div>'; return; }
 
     var v = state.fields;
-    if(!v.concept || !v.concept.trim()){ report.innerHTML = '<div class="bad">請先填寫概念描述</div>'; return; }
+    var hasConcept = !!(v.concept && v.concept.trim());
+    var hasExistingPrompt = !!(v.existingPrompt && v.existingPrompt.trim());
+    if(!hasConcept && !hasExistingPrompt){ report.innerHTML = '<div class="bad">請先填寫概念描述，或在「既有照片提示詞補充」貼上要補充的既有提示詞</div>'; return; }
 
     var promptForAi = aiPromptForTarget(state.activeTarget, v);
 
