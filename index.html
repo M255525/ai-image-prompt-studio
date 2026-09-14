@@ -1294,6 +1294,11 @@
      不逐一分開呼叫每個次要主題（省 API 次數）。 ---------- */
   var DECOMPOSE_BREAKDOWN_MARKER = '【次要主題拆解與發展】';
   var DECOMPOSE_RESULT_MARKER = '【AI優化結果】';
+  /* 實測發現 LLM 不一定會逐字重現上面兩個標記（常見變形：括號內加空格、用半形 [] 取代全形【】、
+     用 markdown 粗體／標題符號包住），若用 indexOf 精確比對字串會找不到、直接判定失敗——
+     改用容錯 regex（括號可有可無，可加空格與星號、井字號、冒號等修飾符號）辨識分界點。 */
+  var DECOMPOSE_RESULT_RE = /[*#\s]*[【\[]?\s*AI\s*優化結果\s*[】\]]?[*#\s:：]*\n?/i;
+  var DECOMPOSE_BREAKDOWN_RE = /[*#\s]*[【\[]?\s*次要主題拆解(?:與發展)?\s*[】\]]?[*#\s:：]*\n?/;
 
   function decomposeAndOptimizePrompt(target, v){
     var tg = TARGETS[target];
@@ -1334,10 +1339,14 @@
   }
 
   function parseDecomposeOptimizeResult(text){
-    var idx = text.indexOf(DECOMPOSE_RESULT_MARKER);
-    if(idx === -1) return {breakdown: text.trim(), optimized: ''};
-    var breakdown = text.slice(0, idx).replace(DECOMPOSE_BREAKDOWN_MARKER, '').trim();
-    var optimized = text.slice(idx + DECOMPOSE_RESULT_MARKER.length).trim();
+    // 保底原則：只要 AI 有回應內容，「AI 優化結果」欄位就一定要有東西可看——
+    // 找不到分界標記時，寧可把整段回應原文當成優化結果顯示，也不要顯示空白或直接判定失敗。
+    var m = DECOMPOSE_RESULT_RE.exec(text);
+    if(!m) return {breakdown: '', optimized: text.trim()};
+    var breakdownRaw = text.slice(0, m.index);
+    var bm = DECOMPOSE_BREAKDOWN_RE.exec(breakdownRaw);
+    var breakdown = (bm ? breakdownRaw.slice(bm.index + bm[0].length) : breakdownRaw).trim();
+    var optimized = text.slice(m.index + m[0].length).trim() || text.trim();
     return {breakdown: breakdown, optimized: optimized};
   }
 
@@ -1372,16 +1381,20 @@
         report.innerHTML = '<div class="warn">API 回應 ' + status + '（服務商暫時過載／限流），' + waitSec + ' 秒後自動重試（第 ' + attempt + '／2 次）…</div>';
       });
       var parsed = parseDecomposeOptimizeResult(text);
-      if(!parsed.optimized) throw new Error('AI 回應格式異常，沒有找到優化結果，請重試');
 
-      resultBox.innerHTML = '<strong>次要主題拆解與發展</strong><br>' + escapeHtml(parsed.breakdown).replace(/\n/g, '<br>');
-      resultBox.hidden = false;
+      if(parsed.breakdown){
+        resultBox.innerHTML = '<strong>次要主題拆解與發展</strong><br>' + escapeHtml(parsed.breakdown).replace(/\n/g, '<br>');
+        resultBox.hidden = false;
+      } else {
+        resultBox.hidden = true;
+      }
 
       state.aiOutput[state.activeTarget] = parsed.optimized;
       persistState();
       $('aiOutput').textContent = parsed.optimized;
 
-      report.innerHTML = '<div class="ok">已完成拆解與發展，優化結果已更新到下方「AI 優化結果（中英對照）」。</div>';
+      report.innerHTML = '<div class="ok">已完成拆解與發展，優化結果已更新到下方「AI 優化結果（中英對照）」。' +
+        (parsed.breakdown ? '' : '（AI 這次回應的段落格式跟預期有點出入，已直接把完整回應寫入優化結果，內容仍完整可用，只是沒有另外列出次要主題拆解過程）') + '</div>';
     }catch(err){
       var msg;
       if(err.name === 'TimeoutError') msg = '呼叫逾時，這個服務商可能暫時回應較慢，可以重試看看';
