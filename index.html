@@ -298,9 +298,9 @@
         🧩 主題拆解模式（先把概念拆解成幾個次要主題，分別發展細節內容，再整合成更完整的概念描述）
       </label>
       <div class="decompose-box" id="decomposePanel" hidden>
-        <p class="field-hint" style="margin:0 0 10px;">會用下方「送給 AI 優化」的 API 連線設定與目前分頁（<span id="decomposeTargetLabel"></span>），請 AI 依序完成：① 把概念描述拆解成幾個次要主題 → ② 分別發展每個次要主題更豐富的衍生內容 → ③ 跟風格／構圖／光線／色調／長寬比／負面提示詞等設定組合整理 → ④ 直接產出中英對照的正式提示詞，結果會出現在下方「AI 優化結果（中英對照）」。</p>
+        <p class="field-hint" style="margin:0 0 10px;">會用下方「送給 AI 優化」的 API 連線設定，請 AI 依序完成：① 把概念描述拆解成幾個次要主題 → ② 分別發展每個次要主題更豐富的衍生內容 → ③ 整合成一段更完整的概念描述，並直接套用到上面的「概念描述」欄位。套用後，「🔧 組成提示詞」與「🚀 送給 AI 優化」會自動把這段更豐富的概念，跟風格／構圖／光線／色調／長寬比／負面提示詞等設定組合起來，AI 優化時也會完整保留這些設定，不會漏掉。</p>
         <div class="output-actions">
-          <button class="btn ghost" id="decomposeBtn" type="button">🧩 拆解、發展並優化提示詞</button>
+          <button class="btn ghost" id="decomposeBtn" type="button">🧩 拆解並發展概念</button>
         </div>
         <div id="decomposeReport" class="ai-report" aria-live="polite"></div>
         <div class="decompose-result" id="decomposeResult" hidden></div>
@@ -909,7 +909,6 @@
     $('targetBadge').textContent = tg.shortZh.length <= 4 ? tg.shortZh : '▦';
     $('targetTitle').textContent = tg.label;
     $('targetHint').textContent = tg.hint;
-    $('decomposeTargetLabel').textContent = tg.shortZh;
     $('promptOutput').textContent = state.assembled[state.activeTarget] || '';
     $('aiOutput').textContent = state.aiOutput[state.activeTarget] || '';
     $('videoOutput').textContent = state.videoScripts[state.activeTarget] || '';
@@ -999,7 +998,9 @@
     showToast._timer = setTimeout(function(){ t.classList.remove('show'); }, 2200);
   }
 
-  function assembleForTarget(target, v){
+  /* 規則式組裝的核心內容（不含給人類看的頁尾註記）——單獨拆出來是因為 aiPromptForTarget() 也要用同一份
+     內容當作送給 AI 翻譯潤飾的草稿，兩處共用同一個真實來源，不要各自重複組裝一次。 */
+  function assembleCoreLines(target, v){
     var tagsEn = buildTagsEn(v);
     var neg = buildNegativeList(v);
     var lines = [];
@@ -1014,6 +1015,11 @@
       if(ratioOpt) lines.push('【長寬比】' + ratioOpt.zh);
     }
     if(neg.zh.length) lines.push('【不想出現的元素】' + neg.zh.join('、'));
+    return lines;
+  }
+
+  function assembleForTarget(target, v){
+    var lines = assembleCoreLines(target, v);
     lines.push('');
     lines.push('※ 以上為關鍵字組裝結果，概念文字尚未翻譯成英文。如需正式的中英對照提示詞，請使用下方「送給 AI 優化」。');
     return lines.join('\n');
@@ -1288,17 +1294,110 @@
 
   $('fetchUrlBtn').addEventListener('click', runUrlFetch);
 
-  /* ---------- 主題拆解模式：把概念描述拆解成幾個次要主題→分別發展出更豐富的衍生內容→跟風格／構圖／光線／
-     色調／長寬比／負面提示詞等設定組合→直接優化成中英對照的正式提示詞，結果寫入 state.aiOutput，跟「🚀 送給
-     AI 優化」共用同一個輸出區（#aiOutput）與複製按鈕。單一 LLM 呼叫、要求固定格式輸出，前端只負責解析與顯示，
-     不逐一分開呼叫每個次要主題（省 API 次數）。 ---------- */
+  /* ---------- 主題拆解模式：把概念描述拆解成幾個次要主題→分別發展出更豐富的衍生內容→整合成一段更完整的
+     繁體中文概念描述，寫回 state.fields.concept。這是「🔧 組成提示詞」與「🚀 送給 AI 優化」共用的**前置步驟**
+     （不直接產生最終提示詞）：套用後，「組成提示詞」會自動把這段更豐富的概念跟風格／構圖／光線／色調／長寬比／
+     負面提示詞組合起來，「送給 AI 優化」再把組合結果整段拿去翻譯潤飾——決定要不要用主題拆解、要跟哪些標籤
+     組合，都是既有欄位與既有兩顆按鈕本來就會做的事，不需要另外開一條專屬的「拆解並優化」流程。
+     單一 LLM 呼叫、要求固定格式輸出，前端只負責解析與顯示，不逐一分開呼叫每個次要主題（省 API 次數）。 ---------- */
   var DECOMPOSE_BREAKDOWN_MARKER = '【次要主題拆解與發展】';
-  var DECOMPOSE_RESULT_MARKER = '【AI優化結果】';
+  var DECOMPOSE_INTEGRATED_MARKER = '【整合後的完整概念描述】';
   /* 實測發現 LLM 不一定會逐字重現上面兩個標記（常見變形：括號內加空格、用半形 [] 取代全形【】、
      用 markdown 粗體／標題符號包住），若用 indexOf 精確比對字串會找不到、直接判定失敗——
      改用容錯 regex（括號可有可無，可加空格與星號、井字號、冒號等修飾符號）辨識分界點。 */
-  var DECOMPOSE_RESULT_RE = /[*#\s]*[【\[]?\s*AI\s*優化結果\s*[】\]]?[*#\s:：]*\n?/i;
+  var DECOMPOSE_INTEGRATED_RE = /[*#\s]*[【\[]?\s*整合後的(?:完整)?概念描述\s*[】\]]?[*#\s:：]*\n?/;
   var DECOMPOSE_BREAKDOWN_RE = /[*#\s]*[【\[]?\s*次要主題拆解(?:與發展)?\s*[】\]]?[*#\s:：]*\n?/;
+
+  function decomposePrompt(concept){
+    var lines = [];
+    lines.push('你是一位圖片生成提示詞企劃助手。請針對以下畫面概念，依序完成「拆解→發展→整合」三個步驟：');
+    lines.push('');
+    lines.push('原始概念描述：' + concept);
+    lines.push('');
+    lines.push('步驟一（拆解）：把這個概念拆解成 3～5 個「次要主題」——構成這個畫面的重要子元素或面向（例如主體細節、場景背景、氛圍情緒、道具搭配、光影效果等，實際主題依概念內容決定，不要硬套固定分類）。');
+    lines.push('步驟二（發展）：針對每一個次要主題，各自發展出更豐富具體、更有畫面感的衍生內容（2～3 句話，盡量補上具體的視覺意象、材質、動作或情境細節，不要只是重複原句）。');
+    lines.push('步驟三（整合）：把步驟二所有次要主題發展出的內容，整合成一段更完整、更有畫面細節的繁體中文概念描述（4～8 句、語意連貫、不要條列），可以直接取代原本的概念描述，作為後續組成提示詞與 AI 優化的基礎（風格／構圖／光線／色調／長寬比／負面提示詞等設定不在這裡處理，那些會在後續步驟另外加上，這裡只專注在畫面內容本身）。');
+    lines.push('');
+    lines.push('請務必用以下格式輸出，不要有其他多餘文字或說明：');
+    lines.push(DECOMPOSE_BREAKDOWN_MARKER);
+    lines.push('1. 主題名稱：發展內容');
+    lines.push('2. 主題名稱：發展內容');
+    lines.push('（實際拆解出幾個主題就列幾點，不限於兩點）');
+    lines.push(DECOMPOSE_INTEGRATED_MARKER);
+    lines.push('整合後的完整概念描述文字');
+    return lines.join('\n');
+  }
+
+  function parseDecomposeResult(text){
+    // 保底原則：找不到分界標記時，寧可把整段回應原文當成整合結果，也不要顯示空白或直接判定失敗。
+    var m = DECOMPOSE_INTEGRATED_RE.exec(text);
+    if(!m) return {breakdown: '', integrated: text.trim()};
+    var breakdownRaw = text.slice(0, m.index);
+    var bm = DECOMPOSE_BREAKDOWN_RE.exec(breakdownRaw);
+    var breakdown = (bm ? breakdownRaw.slice(bm.index + bm[0].length) : breakdownRaw).trim();
+    var integrated = text.slice(m.index + m[0].length).trim() || text.trim();
+    return {breakdown: breakdown, integrated: integrated};
+  }
+
+  function renderDecomposeError(msg){
+    var report = $('decomposeReport');
+    report.innerHTML = '<div class="bad">' + escapeHtml(msg) + '</div>'
+      + '<button type="button" class="chip" id="decomposeRetryBtn" style="margin-top:8px;">🔄 重試</button>';
+    $('decomposeRetryBtn').addEventListener('click', runDecompose);
+  }
+
+  async function runDecompose(){
+    var report = $('decomposeReport');
+    var resultBox = $('decomposeResult');
+    var concept = (state.fields.concept || '').trim();
+    if(!concept){ report.innerHTML = '<div class="bad">請先填寫概念描述再進行拆解</div>'; return; }
+
+    var provider = $('aiProvider').value;
+    var model = $('aiModel').value.trim();
+    var apiKey = $('aiKey').value.trim();
+    if(!apiKey){ report.innerHTML = '<div class="bad">請先在下方「送給 AI 優化」的「API 連線設定」填入 API 金鑰</div>'; return; }
+    if(!model){ report.innerHTML = '<div class="bad">請先在下方「API 連線設定」填入模型名稱</div>'; return; }
+    if(!isLatin1(apiKey) || !isLatin1(model)){ report.innerHTML = '<div class="bad">API 金鑰或模型名稱包含不可用的字元，請確認「API 連線設定」內容</div>'; return; }
+
+    var btn = $('decomposeBtn');
+    btn.disabled = true;
+    resultBox.hidden = true;
+    report.innerHTML = '<div class="ok">正在拆解主題並發展內容…</div>';
+    try{
+      persistApiConfig();
+      var text = await callLLM(provider, model, apiKey, decomposePrompt(concept), function(attempt, status, waitSec){
+        report.innerHTML = '<div class="warn">API 回應 ' + status + '（服務商暫時過載／限流），' + waitSec + ' 秒後自動重試（第 ' + attempt + '／2 次）…</div>';
+      });
+      var parsed = parseDecomposeResult(text);
+
+      if(parsed.breakdown){
+        resultBox.innerHTML = '<strong>次要主題拆解與發展</strong><br>' + escapeHtml(parsed.breakdown).replace(/\n/g, '<br>');
+        resultBox.hidden = false;
+      } else {
+        resultBox.hidden = true;
+      }
+
+      if(concept && parsed.integrated !== concept && !confirm('套用整合結果將覆蓋目前的「概念描述」，確定嗎？')){
+        report.innerHTML = '<div class="warn">已取消套用，整合結果未套用到「概念描述」。</div>';
+      } else {
+        state.fields.concept = parsed.integrated;
+        $('f_concept').value = parsed.integrated;
+        persistState();
+        report.innerHTML = '<div class="ok">已將整合後的概念套用到「概念描述」，接著按「🔧 組成提示詞」或「🚀 送給 AI 優化」即可自動帶入風格／構圖／光線／色調／長寬比／負面提示詞等設定繼續使用。</div>';
+      }
+    }catch(err){
+      var msg;
+      if(err.name === 'TimeoutError') msg = '呼叫逾時，這個服務商可能暫時回應較慢，可以重試看看';
+      else if(/ISO-8859-1|non.*code point/i.test(err.message || '')) msg = 'API 金鑰或模型名稱包含不可用的字元，請重新確認「API 連線設定」內容';
+      else if(/Failed to fetch|NetworkError/i.test(err.message || '')) msg = '無法連線到服務商，請檢查網路連線或稍後再試';
+      else msg = err.message;
+      renderDecomposeError(msg);
+    }finally{
+      btn.disabled = false;
+    }
+  }
+
+  $('decomposeBtn').addEventListener('click', runDecompose);
 
   /* 光靠「請自然融入、不要省略」這種軟性要求，AI 仍常常漏掉長寬比與負面元素（自然語言句子裡沒有
      --ar/--no 這種強制參數語法可以依附，全靠 AI 自己記得寫進句子）。改成要求 English Prompt 結尾
@@ -1315,116 +1414,6 @@
     }
     return parts.join(' ');
   }
-
-  function decomposeAndOptimizePrompt(target, v){
-    var tg = TARGETS[target];
-    var tagsZh = buildTagsZh(v);
-    var neg = buildNegativeList(v);
-    var ratioOpt = optFind(RATIO_OPTIONS, v.ratio);
-    var formatRule;
-    if(target === 'midjourney'){
-      formatRule = '請用逗號分隔的英文關鍵詞組（不要用完整句子），結尾附上 "--ar ' + (v.ratio || '1:1') + ' --v 6"'
-        + (neg.zh.length ? '，並用 "--no ..." 完整列出下面「不想出現的元素」的每一項' : '') + '。';
-    } else {
-      formatRule = '請用 2～4 句流暢的英文自然語言描述句（不需要任何參數語法），把風格設定自然地寫進句子裡，不要條列標籤。'
-        + mandatoryEnglishTrailerRule(v, ratioOpt, neg);
-    }
-
-    var lines = [];
-    lines.push('你是一位專業的 AI 繪圖提示詞工程師。請針對使用者提供的畫面概念，依序完成「拆解→發展→整合→優化」四個步驟，最終產出適合「' + tg.label + '」使用的正式圖片生成提示詞。');
-    lines.push('');
-    lines.push('原始概念描述：' + v.concept);
-    if(tagsZh.length) lines.push('指定風格／構圖／光線／色調／畫質（步驟三整合、步驟四優化時都要自然融入，不要生硬條列，但每一項都要有對應內容出現在最終提示詞裡，不可為了精簡而省略任何一項）：' + tagsZh.join('、'));
-    if(ratioOpt) lines.push('長寬比：' + ratioOpt.zh);
-    if(neg.zh.length) lines.push('不想出現的元素（也要逐項用明確的英文負面描述表達，例如 no watermark or logo, hands out of frame, uncluttered background，不可略過任何一項）：' + neg.zh.join('、'));
-    lines.push('');
-    lines.push('步驟一（拆解）：把原始概念拆解成 3～5 個「次要主題」——構成這個畫面的重要子元素或面向（例如主體細節、場景背景、氛圍情緒、道具搭配、光影效果等，實際主題依概念內容決定，不要硬套固定分類）。');
-    lines.push('步驟二（發展）：針對每一個次要主題，各自發展出更豐富具體、更有畫面感的衍生內容（2～3 句話，盡量補上具體的視覺意象、材質、動作或情境細節，不要只是重複原句）。');
-    lines.push('步驟三（整合）：把步驟二所有次要主題發展出的內容，跟上面指定的風格／構圖／光線／色調／長寬比／不想出現的元素等設定，整合成一個完整、細節豐富的畫面構想——所有指定的標籤與不想出現的元素都要保留，不可在整合過程中遺漏。');
-    lines.push('步驟四（優化）：以步驟三整合的結果為基礎，產出最終正式提示詞——先輸出一段「中文說明」簡短描述你理解的完整畫面內容，方便使用者確認語意是否正確；接著另起一行輸出分隔線 "---"；最後輸出「English Prompt」區塊，內容是最終要貼給圖片生成模型使用的完整英文提示詞。' + formatRule + ' English Prompt 必須完整涵蓋上面列出的每一項風格／構圖／光線／色調／畫質標籤，以及每一項「不想出現的元素」，不可為了精簡而省略——即使因此需要用比較長的句子逐一帶到每個重點也沒關係，完整度優先於簡潔。');
-    lines.push('');
-    lines.push('請務必用以下格式輸出，不要有其他多餘文字或說明：');
-    lines.push(DECOMPOSE_BREAKDOWN_MARKER);
-    lines.push('1. 主題名稱：發展內容');
-    lines.push('2. 主題名稱：發展內容');
-    lines.push('（實際拆解出幾個主題就列幾點，不限於兩點，這部分只用來讓使用者了解你的發展過程，不需要中英對照）');
-    lines.push(DECOMPOSE_RESULT_MARKER);
-    lines.push('（步驟四的中文說明）');
-    lines.push('---');
-    lines.push('（步驟四的 English Prompt）');
-    return lines.join('\n');
-  }
-
-  function parseDecomposeOptimizeResult(text){
-    // 保底原則：只要 AI 有回應內容，「AI 優化結果」欄位就一定要有東西可看——
-    // 找不到分界標記時，寧可把整段回應原文當成優化結果顯示，也不要顯示空白或直接判定失敗。
-    var m = DECOMPOSE_RESULT_RE.exec(text);
-    if(!m) return {breakdown: '', optimized: text.trim()};
-    var breakdownRaw = text.slice(0, m.index);
-    var bm = DECOMPOSE_BREAKDOWN_RE.exec(breakdownRaw);
-    var breakdown = (bm ? breakdownRaw.slice(bm.index + bm[0].length) : breakdownRaw).trim();
-    var optimized = text.slice(m.index + m[0].length).trim() || text.trim();
-    return {breakdown: breakdown, optimized: optimized};
-  }
-
-  function renderDecomposeError(msg){
-    var report = $('decomposeReport');
-    report.innerHTML = '<div class="bad">' + escapeHtml(msg) + '</div>'
-      + '<button type="button" class="chip" id="decomposeRetryBtn" style="margin-top:8px;">🔄 重試</button>';
-    $('decomposeRetryBtn').addEventListener('click', runDecompose);
-  }
-
-  async function runDecompose(){
-    var report = $('decomposeReport');
-    var resultBox = $('decomposeResult');
-    var v = state.fields;
-    if(!v.concept || !v.concept.trim()){ report.innerHTML = '<div class="bad">請先填寫概念描述再進行拆解</div>'; return; }
-
-    var provider = $('aiProvider').value;
-    var model = $('aiModel').value.trim();
-    var apiKey = $('aiKey').value.trim();
-    if(!apiKey){ report.innerHTML = '<div class="bad">請先在下方「送給 AI 優化」的「API 連線設定」填入 API 金鑰</div>'; return; }
-    if(!model){ report.innerHTML = '<div class="bad">請先在下方「API 連線設定」填入模型名稱</div>'; return; }
-    if(!isLatin1(apiKey) || !isLatin1(model)){ report.innerHTML = '<div class="bad">API 金鑰或模型名稱包含不可用的字元，請確認「API 連線設定」內容</div>'; return; }
-
-    var btn = $('decomposeBtn');
-    btn.disabled = true;
-    resultBox.hidden = true;
-    var tg = TARGETS[state.activeTarget];
-    report.innerHTML = '<div class="ok">正在拆解主題、發展內容並產生「' + tg.shortZh + '」優化結果…</div>';
-    try{
-      persistApiConfig();
-      var text = await callLLM(provider, model, apiKey, decomposeAndOptimizePrompt(state.activeTarget, v), function(attempt, status, waitSec){
-        report.innerHTML = '<div class="warn">API 回應 ' + status + '（服務商暫時過載／限流），' + waitSec + ' 秒後自動重試（第 ' + attempt + '／2 次）…</div>';
-      });
-      var parsed = parseDecomposeOptimizeResult(text);
-
-      if(parsed.breakdown){
-        resultBox.innerHTML = '<strong>次要主題拆解與發展</strong><br>' + escapeHtml(parsed.breakdown).replace(/\n/g, '<br>');
-        resultBox.hidden = false;
-      } else {
-        resultBox.hidden = true;
-      }
-
-      state.aiOutput[state.activeTarget] = parsed.optimized;
-      persistState();
-      $('aiOutput').textContent = parsed.optimized;
-
-      report.innerHTML = '<div class="ok">已完成拆解與發展，優化結果已更新到下方「AI 優化結果（中英對照）」。' +
-        (parsed.breakdown ? '' : '（AI 這次回應的段落格式跟預期有點出入，已直接把完整回應寫入優化結果，內容仍完整可用，只是沒有另外列出次要主題拆解過程）') + '</div>';
-    }catch(err){
-      var msg;
-      if(err.name === 'TimeoutError') msg = '呼叫逾時，這個服務商可能暫時回應較慢，可以重試看看';
-      else if(/ISO-8859-1|non.*code point/i.test(err.message || '')) msg = 'API 金鑰或模型名稱包含不可用的字元，請重新確認「API 連線設定」內容';
-      else if(/Failed to fetch|NetworkError/i.test(err.message || '')) msg = '無法連線到服務商，請檢查網路連線或稍後再試';
-      else msg = err.message;
-      renderDecomposeError(msg);
-    }finally{
-      btn.disabled = false;
-    }
-  }
-
-  $('decomposeBtn').addEventListener('click', runDecompose);
 
   /* ---------- 送給 AI 優化的請求內容：依目標模型分頁附上不同的輸出格式規則 ---------- */
   function aiPromptForTarget(target, v){
@@ -1447,20 +1436,25 @@
       lines.push('');
       lines.push('既有照片提示詞（請以此為基礎進行補充修改）：' + v.existingPrompt.trim());
       if(v.concept && v.concept.trim()) lines.push('補充說明／想調整或加入的內容：' + v.concept);
+      if(tagsZh.length) lines.push('指定風格／構圖／光線／色調／畫質（請自然融入，不要生硬條列，但每一項都要有對應內容出現在最終提示詞裡，不可為了精簡而省略任何一項）：' + tagsZh.join('、'));
+      if(ratioOpt) lines.push('長寬比：' + ratioOpt.zh);
+      if(neg.zh.length) lines.push('不想出現的元素（也要逐項用明確的英文負面描述表達，例如 no watermark or logo, hands out of frame, uncluttered background，不可略過任何一項）：' + neg.zh.join('、'));
     } else {
-      lines.push('你是一位專業的 AI 繪圖提示詞工程師。請把下面的概念與風格設定，優化成適合「' + tg.label + '」使用的圖片生成提示詞。');
+      // 不要求 AI 自己從各欄位重新組裝一次（容易漏東西），而是直接把「🔧 組成提示詞」用的同一份
+      // 規則式組裝草稿（assembleCoreLines()，100% 包含概念、風格標籤、長寬比、不想出現的元素，
+      // 純字串組裝不靠 AI 記憶）交給 AI 翻譯潤飾——AI 的任務從「記得列出每一項設定」降低成
+      // 「把已經列好的草稿翻成通順英文」，大幅降低遺漏風險。
+      lines.push('你是一位專業的 AI 繪圖提示詞工程師。以下是使用者已經用固定規則組裝好的提示詞草稿，包含完整的概念、風格／構圖／光線／色調／畫質標籤、長寬比（或建議 Midjourney 參數）、不想出現的元素等設定。請把這份草稿優化、潤飾並翻譯成適合「' + tg.label + '」使用的正式圖片生成提示詞——草稿裡列出的每一項設定都必須在最終結果裡有對應內容，不可遺漏或省略任何一項。');
       lines.push('');
-      lines.push('概念（使用者原始描述）：' + v.concept);
+      lines.push('使用者的提示詞草稿：');
+      lines.push(assembleCoreLines(target, v).join('\n'));
     }
-    if(tagsZh.length) lines.push('指定風格／構圖／光線／色調／畫質（請自然融入，不要生硬條列，但每一項都要有對應內容出現在最終提示詞裡，不可為了精簡而省略任何一項）：' + tagsZh.join('、'));
-    if(ratioOpt) lines.push('長寬比：' + ratioOpt.zh);
-    if(neg.zh.length) lines.push('不想出現的元素（也要逐項用明確的英文負面描述表達，例如 no watermark or logo, hands out of frame, uncluttered background，不可略過任何一項）：' + neg.zh.join('、'));
     lines.push('');
     lines.push('輸出規則：');
     lines.push('1. 先輸出一段「中文說明」，簡短描述你理解的畫面內容，方便使用者確認語意是否正確；');
     lines.push('2. 接著另起一行輸出分隔線 "---"；');
     lines.push('3. 最後輸出「English Prompt」區塊，內容是最終要貼給圖片生成模型使用的完整英文提示詞。' + formatRule);
-    lines.push('English Prompt 必須完整涵蓋上面列出的每一項風格／構圖／光線／色調／畫質標籤，以及每一項「不想出現的元素」，不可為了精簡而省略——即使因此需要用比較長的句子逐一帶到每個重點也沒關係，完整度優先於簡潔。');
+    lines.push('English Prompt 必須完整涵蓋' + (hasExisting ? '上面列出的每一項風格／構圖／光線／色調／畫質標籤，以及每一項「不想出現的元素」' : '草稿裡的每一項設定（概念、風格／構圖／光線／色調／畫質標籤、長寬比、不想出現的元素）') + '，不可為了精簡而省略——即使因此需要用比較長的句子逐一帶到每個重點也沒關係，完整度優先於簡潔。');
     lines.push('請勿輸出除了中文說明、分隔線、English Prompt 以外的其他內容。');
     return lines.join('\n');
   }
