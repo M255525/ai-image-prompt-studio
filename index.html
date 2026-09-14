@@ -1415,6 +1415,17 @@
     return parts.join(' ');
   }
 
+  /* 「中文說明」原本只要求「簡短描述畫面內容」，AI 很自然會當成一句話摘要，完全不理會長寬比／
+     不想出現的元素這些設定——實測發現即使 English Prompt 已經完整涵蓋，中文說明仍然停留在原本
+     那種簡短風格，兩段的完整度明顯不對等。比照 English Prompt 的做法，中文說明結尾也要求固定
+     格式的必填短句，讓使用者不用對照英文也能確認每一項設定都有被採用。 */
+  function mandatoryChineseTrailerRule(v, ratioOpt, neg){
+    var parts = [];
+    if(ratioOpt) parts.push('中文說明的最後也要另外加一句固定寫法：「長寬比：' + v.ratio + '，' + ratioOpt.zh + '。」，這句話一定要出現，不能省略。');
+    if(neg.zh.length) parts.push('中文說明的最後也要加一句固定寫法：「避免：' + neg.zh.join('、') + '。」，這句話一定要出現，每一項都不能省略。');
+    return parts.join(' ');
+  }
+
   /* ---------- 送給 AI 優化的請求內容：依目標模型分頁附上不同的輸出格式規則 ---------- */
   function aiPromptForTarget(target, v){
     var tg = TARGETS[target];
@@ -1451,10 +1462,10 @@
     }
     lines.push('');
     lines.push('輸出規則：');
-    lines.push('1. 先輸出一段「中文說明」，簡短描述你理解的畫面內容，方便使用者確認語意是否正確；');
+    lines.push('1. 先輸出一段「中文說明」——這段中文的完整度必須跟後面的 English Prompt 對等，不是一句話摘要：請把最終畫面會呈現的風格／構圖／光線／色調也具體寫進這段中文說明裡，不要只描述主體內容。' + mandatoryChineseTrailerRule(v, ratioOpt, neg));
     lines.push('2. 接著另起一行輸出分隔線 "---"；');
     lines.push('3. 最後輸出「English Prompt」區塊，內容是最終要貼給圖片生成模型使用的完整英文提示詞。' + formatRule);
-    lines.push('English Prompt 必須完整涵蓋' + (hasExisting ? '上面列出的每一項風格／構圖／光線／色調／畫質標籤，以及每一項「不想出現的元素」' : '草稿裡的每一項設定（概念、風格／構圖／光線／色調／畫質標籤、長寬比、不想出現的元素）') + '，不可為了精簡而省略——即使因此需要用比較長的句子逐一帶到每個重點也沒關係，完整度優先於簡潔。');
+    lines.push('中文說明與 English Prompt 都必須完整涵蓋' + (hasExisting ? '上面列出的每一項風格／構圖／光線／色調／畫質標籤，以及每一項「不想出現的元素」' : '草稿裡的每一項設定（概念、風格／構圖／光線／色調／畫質標籤、長寬比、不想出現的元素）') + '，不可為了精簡而省略——即使因此需要用比較長的句子逐一帶到每個重點也沒關係，完整度優先於簡潔。');
     lines.push('請勿輸出除了中文說明、分隔線、English Prompt 以外的其他內容。');
     return lines.join('\n');
   }
