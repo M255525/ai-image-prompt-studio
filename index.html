@@ -298,9 +298,9 @@
         🧩 主題拆解模式（先把概念拆解成幾個次要主題，分別發展細節內容，再整合成更完整的概念描述）
       </label>
       <div class="decompose-box" id="decomposePanel" hidden>
-        <p class="field-hint" style="margin:0 0 10px;">會用下方「送給 AI 優化」的 API 連線設定，請 AI 依序完成：① 把概念描述拆解成幾個次要主題 → ② 分別發展每個次要主題的內容 → ③ 整合成一段更完整的概念描述，供你確認後套用。</p>
+        <p class="field-hint" style="margin:0 0 10px;">會用下方「送給 AI 優化」的 API 連線設定與目前分頁（<span id="decomposeTargetLabel"></span>），請 AI 依序完成：① 把概念描述拆解成幾個次要主題 → ② 分別發展每個次要主題更豐富的衍生內容 → ③ 跟風格／構圖／光線／色調／長寬比／負面提示詞等設定組合整理 → ④ 直接產出中英對照的正式提示詞，結果會出現在下方「AI 優化結果（中英對照）」。</p>
         <div class="output-actions">
-          <button class="btn ghost" id="decomposeBtn" type="button">🧩 拆解並發展概念</button>
+          <button class="btn ghost" id="decomposeBtn" type="button">🧩 拆解、發展並優化提示詞</button>
         </div>
         <div id="decomposeReport" class="ai-report" aria-live="polite"></div>
         <div class="decompose-result" id="decomposeResult" hidden></div>
@@ -909,6 +909,7 @@
     $('targetBadge').textContent = tg.shortZh.length <= 4 ? tg.shortZh : '▦';
     $('targetTitle').textContent = tg.label;
     $('targetHint').textContent = tg.hint;
+    $('decomposeTargetLabel').textContent = tg.shortZh;
     $('promptOutput').textContent = state.assembled[state.activeTarget] || '';
     $('aiOutput').textContent = state.aiOutput[state.activeTarget] || '';
     $('videoOutput').textContent = state.videoScripts[state.activeTarget] || '';
@@ -1287,36 +1288,57 @@
 
   $('fetchUrlBtn').addEventListener('click', runUrlFetch);
 
-  /* ---------- 主題拆解模式：把概念描述拆解成幾個次要主題→分別發展內容→整合成更完整的概念描述。
-     單一 LLM 呼叫、要求固定格式輸出，前端只負責解析與顯示，不逐一分開呼叫每個次要主題（省 API 次數）。 ---------- */
-  var DECOMPOSE_MARKER = '【整合後的完整概念描述】';
+  /* ---------- 主題拆解模式：把概念描述拆解成幾個次要主題→分別發展出更豐富的衍生內容→跟風格／構圖／光線／
+     色調／長寬比／負面提示詞等設定組合→直接優化成中英對照的正式提示詞，結果寫入 state.aiOutput，跟「🚀 送給
+     AI 優化」共用同一個輸出區（#aiOutput）與複製按鈕。單一 LLM 呼叫、要求固定格式輸出，前端只負責解析與顯示，
+     不逐一分開呼叫每個次要主題（省 API 次數）。 ---------- */
+  var DECOMPOSE_BREAKDOWN_MARKER = '【次要主題拆解與發展】';
+  var DECOMPOSE_RESULT_MARKER = '【AI優化結果】';
 
-  function decomposePrompt(concept){
+  function decomposeAndOptimizePrompt(target, v){
+    var tg = TARGETS[target];
+    var tagsZh = buildTagsZh(v);
+    var neg = buildNegativeList(v);
+    var ratioOpt = optFind(RATIO_OPTIONS, v.ratio);
+    var formatRule;
+    if(target === 'midjourney'){
+      formatRule = '請用逗號分隔的英文關鍵詞組（不要用完整句子），結尾附上 "--ar ' + (v.ratio || '1:1') + ' --v 6"'
+        + (neg.zh.length ? '，並視情況加上 "--no ..." 處理不想出現的元素' : '') + '。';
+    } else {
+      formatRule = '請用 1～3 句流暢的英文自然語言描述句（不需要任何參數語法），把風格設定自然地寫進句子裡，不要條列標籤。';
+    }
+
     var lines = [];
-    lines.push('你是一位圖片生成提示詞企劃助手。請針對以下畫面概念，依序完成「拆解→發展→整合」三個步驟：');
+    lines.push('你是一位專業的 AI 繪圖提示詞工程師。請針對使用者提供的畫面概念，依序完成「拆解→發展→整合→優化」四個步驟，最終產出適合「' + tg.label + '」使用的正式圖片生成提示詞。');
     lines.push('');
-    lines.push('原始概念描述：' + concept);
+    lines.push('原始概念描述：' + v.concept);
+    if(tagsZh.length) lines.push('指定風格／構圖／光線／色調／畫質（步驟三整合、步驟四優化時都要自然融入，不要生硬條列）：' + tagsZh.join('、'));
+    if(ratioOpt) lines.push('長寬比：' + ratioOpt.zh);
+    if(neg.zh.length) lines.push('不想出現的元素：' + neg.zh.join('、'));
     lines.push('');
-    lines.push('步驟一（拆解）：把這個概念拆解成 3～5 個「次要主題」——構成這個畫面的重要子元素或面向（例如主體細節、場景背景、氛圍情緒、道具搭配、光影效果等，實際主題依概念內容決定，不要硬套固定分類）。');
-    lines.push('步驟二（發展）：針對每一個次要主題，各自發展出更具體、更有畫面感的描述內容（1～2 句話）。');
-    lines.push('步驟三（整合）：把所有次要主題發展出的內容，整合成一段更完整、更有畫面細節的繁體中文概念描述（3～6 句話、語意連貫、不要條列），可以直接取代原本的概念描述。');
+    lines.push('步驟一（拆解）：把原始概念拆解成 3～5 個「次要主題」——構成這個畫面的重要子元素或面向（例如主體細節、場景背景、氛圍情緒、道具搭配、光影效果等，實際主題依概念內容決定，不要硬套固定分類）。');
+    lines.push('步驟二（發展）：針對每一個次要主題，各自發展出更豐富具體、更有畫面感的衍生內容（2～3 句話，盡量補上具體的視覺意象、材質、動作或情境細節，不要只是重複原句）。');
+    lines.push('步驟三（整合）：把步驟二所有次要主題發展出的內容，跟上面指定的風格／構圖／光線／色調／長寬比／不想出現的元素等設定，整合成一個完整、細節豐富的畫面構想。');
+    lines.push('步驟四（優化）：以步驟三整合的結果為基礎，產出最終正式提示詞——先輸出一段「中文說明」簡短描述你理解的完整畫面內容，方便使用者確認語意是否正確；接著另起一行輸出分隔線 "---"；最後輸出「English Prompt」區塊，內容是最終要貼給圖片生成模型使用的完整英文提示詞。' + formatRule);
     lines.push('');
     lines.push('請務必用以下格式輸出，不要有其他多餘文字或說明：');
-    lines.push('【次要主題拆解與發展】');
+    lines.push(DECOMPOSE_BREAKDOWN_MARKER);
     lines.push('1. 主題名稱：發展內容');
     lines.push('2. 主題名稱：發展內容');
-    lines.push('（實際拆解出幾個主題就列幾點，不限於兩點）');
-    lines.push(DECOMPOSE_MARKER);
-    lines.push('整合後的完整概念描述文字');
+    lines.push('（實際拆解出幾個主題就列幾點，不限於兩點，這部分只用來讓使用者了解你的發展過程，不需要中英對照）');
+    lines.push(DECOMPOSE_RESULT_MARKER);
+    lines.push('（步驟四的中文說明）');
+    lines.push('---');
+    lines.push('（步驟四的 English Prompt）');
     return lines.join('\n');
   }
 
-  function parseDecomposeResult(text){
-    var idx = text.indexOf(DECOMPOSE_MARKER);
-    if(idx === -1) return {breakdown: text.trim(), integrated: ''};
-    var breakdown = text.slice(0, idx).replace('【次要主題拆解與發展】', '').trim();
-    var integrated = text.slice(idx + DECOMPOSE_MARKER.length).trim();
-    return {breakdown: breakdown, integrated: integrated};
+  function parseDecomposeOptimizeResult(text){
+    var idx = text.indexOf(DECOMPOSE_RESULT_MARKER);
+    if(idx === -1) return {breakdown: text.trim(), optimized: ''};
+    var breakdown = text.slice(0, idx).replace(DECOMPOSE_BREAKDOWN_MARKER, '').trim();
+    var optimized = text.slice(idx + DECOMPOSE_RESULT_MARKER.length).trim();
+    return {breakdown: breakdown, optimized: optimized};
   }
 
   function renderDecomposeError(msg){
@@ -1329,8 +1351,8 @@
   async function runDecompose(){
     var report = $('decomposeReport');
     var resultBox = $('decomposeResult');
-    var concept = ($('f_concept').value || '').trim();
-    if(!concept){ report.innerHTML = '<div class="bad">請先填寫概念描述再進行拆解</div>'; return; }
+    var v = state.fields;
+    if(!v.concept || !v.concept.trim()){ report.innerHTML = '<div class="bad">請先填寫概念描述再進行拆解</div>'; return; }
 
     var provider = $('aiProvider').value;
     var model = $('aiModel').value.trim();
@@ -1342,29 +1364,24 @@
     var btn = $('decomposeBtn');
     btn.disabled = true;
     resultBox.hidden = true;
-    report.innerHTML = '<div class="ok">正在拆解主題並發展內容…</div>';
+    var tg = TARGETS[state.activeTarget];
+    report.innerHTML = '<div class="ok">正在拆解主題、發展內容並產生「' + tg.shortZh + '」優化結果…</div>';
     try{
       persistApiConfig();
-      var text = await callLLM(provider, model, apiKey, decomposePrompt(concept), function(attempt, status, waitSec){
+      var text = await callLLM(provider, model, apiKey, decomposeAndOptimizePrompt(state.activeTarget, v), function(attempt, status, waitSec){
         report.innerHTML = '<div class="warn">API 回應 ' + status + '（服務商暫時過載／限流），' + waitSec + ' 秒後自動重試（第 ' + attempt + '／2 次）…</div>';
       });
-      var parsed = parseDecomposeResult(text);
-      if(!parsed.integrated) throw new Error('AI 回應格式異常，沒有找到整合後的概念描述，請重試');
+      var parsed = parseDecomposeOptimizeResult(text);
+      if(!parsed.optimized) throw new Error('AI 回應格式異常，沒有找到優化結果，請重試');
 
-      resultBox.innerHTML = '<strong>次要主題拆解與發展</strong><br>' + escapeHtml(parsed.breakdown).replace(/\n/g, '<br>')
-        + '<hr>'
-        + '<strong>整合後的完整概念描述</strong><br>' + escapeHtml(parsed.integrated);
+      resultBox.innerHTML = '<strong>次要主題拆解與發展</strong><br>' + escapeHtml(parsed.breakdown).replace(/\n/g, '<br>');
       resultBox.hidden = false;
 
-      report.innerHTML = '<div class="ok">拆解與整合完成，請確認下方結果後再套用</div>'
-        + '<button type="button" class="chip" id="applyDecomposeBtn" style="margin-top:8px;">套用整合結果到概念描述</button>';
-      $('applyDecomposeBtn').addEventListener('click', function(){
-        if(concept && !confirm('套用整合結果將覆蓋目前的「概念描述」，確定嗎？')) return;
-        state.fields.concept = parsed.integrated;
-        $('f_concept').value = parsed.integrated;
-        persistState();
-        report.innerHTML = '<div class="ok">已套用整合結果到「概念描述」。</div>';
-      });
+      state.aiOutput[state.activeTarget] = parsed.optimized;
+      persistState();
+      $('aiOutput').textContent = parsed.optimized;
+
+      report.innerHTML = '<div class="ok">已完成拆解與發展，優化結果已更新到下方「AI 優化結果（中英對照）」。</div>';
     }catch(err){
       var msg;
       if(err.name === 'TimeoutError') msg = '呼叫逾時，這個服務商可能暫時回應較慢，可以重試看看';
