@@ -154,6 +154,13 @@
   .checkbox-pill.checked{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);}
   .checkbox-pill input{display:none;}
 
+  .toggle-row{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px;color:var(--text-dim);cursor:pointer;user-select:none;}
+  .toggle-row input{width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex:none;}
+  .decompose-box{margin-top:10px;padding:14px;background:var(--panel-raised);border:1px solid var(--line);border-radius:var(--radius);}
+  .decompose-result{margin-top:10px;font-size:12.5px;line-height:1.6;color:var(--text-dim);}
+  .decompose-result strong{color:var(--text);}
+  .decompose-result hr{border:none;border-top:1px solid var(--line);margin:10px 0;}
+
   .output-box{
     background:var(--bg-alt);border:1px solid var(--line);border-radius:8px;padding:14px;
     white-space:pre-wrap;font-family:var(--font-mono);font-size:13px;color:var(--text);min-height:60px;line-height:1.7;
@@ -286,6 +293,18 @@
     <div class="field">
       <label for="f_concept">概念描述（必填）</label>
       <textarea id="f_concept" placeholder="例：一瓶質感香氛蠟燭放在木質桌面上，搭配幾片乾燥花瓣，營造溫暖悠閒的居家氛圍"></textarea>
+      <label class="toggle-row" for="f_decompose">
+        <input type="checkbox" id="f_decompose">
+        🧩 主題拆解模式（先把概念拆解成幾個次要主題，分別發展細節內容，再整合成更完整的概念描述）
+      </label>
+      <div class="decompose-box" id="decomposePanel" hidden>
+        <p class="field-hint" style="margin:0 0 10px;">會用下方「送給 AI 優化」的 API 連線設定，請 AI 依序完成：① 把概念描述拆解成幾個次要主題 → ② 分別發展每個次要主題的內容 → ③ 整合成一段更完整的概念描述，供你確認後套用。</p>
+        <div class="output-actions">
+          <button class="btn ghost" id="decomposeBtn" type="button">🧩 拆解並發展概念</button>
+        </div>
+        <div id="decomposeReport" class="ai-report" aria-live="polite"></div>
+        <div class="decompose-result" id="decomposeResult" hidden></div>
+      </div>
     </div>
 
     <div class="field-grid">
@@ -838,7 +857,7 @@
   /* ---------- 狀態：共用欄位（單一物件，非分頁各自獨立）＋各分頁的組成結果／AI 結果 ---------- */
   var STATE_KEY = 'imgPromptState';
   var state = loadState();
-  function defaultFields(){ return {productUrl:'', concept:'', style:'', composition:'', lighting:'', colortone:'', ratio:'', quality:[], negativeTags:[], negative:'', existingPrompt:''}; }
+  function defaultFields(){ return {productUrl:'', concept:'', style:'', composition:'', lighting:'', colortone:'', ratio:'', quality:[], negativeTags:[], negative:'', existingPrompt:'', decompose:false}; }
   function defaultState(){
     var assembled = {}, aiOut = {}, videoOut = {};
     TARGET_ORDER.forEach(function(t){ assembled[t] = ''; aiOut[t] = ''; videoOut[t] = ''; });
@@ -936,6 +955,8 @@
     $('f_ratio').value = state.fields.ratio || '';
     $('f_negative').value = state.fields.negative || '';
     $('f_existingprompt').value = state.fields.existingPrompt || '';
+    $('f_decompose').checked = !!state.fields.decompose;
+    $('decomposePanel').hidden = !state.fields.decompose;
     renderCheckboxGroup('qualityGroup', QUALITY_OPTIONS, 'quality');
     renderCheckboxGroup('negativeGroup', NEGATIVE_OPTIONS, 'negativeTags');
   }
@@ -956,6 +977,11 @@
     $('f_ratio').addEventListener('change', function(){ state.fields.ratio = this.value; persistState(); });
     $('f_negative').addEventListener('input', function(){ state.fields.negative = this.value; persistState(); });
     $('f_existingprompt').addEventListener('input', function(){ state.fields.existingPrompt = this.value; persistState(); });
+    $('f_decompose').addEventListener('change', function(){
+      state.fields.decompose = this.checked;
+      $('decomposePanel').hidden = !this.checked;
+      persistState();
+    });
   }
 
   function fieldsHasContent(){
@@ -1260,6 +1286,98 @@
   }
 
   $('fetchUrlBtn').addEventListener('click', runUrlFetch);
+
+  /* ---------- 主題拆解模式：把概念描述拆解成幾個次要主題→分別發展內容→整合成更完整的概念描述。
+     單一 LLM 呼叫、要求固定格式輸出，前端只負責解析與顯示，不逐一分開呼叫每個次要主題（省 API 次數）。 ---------- */
+  var DECOMPOSE_MARKER = '【整合後的完整概念描述】';
+
+  function decomposePrompt(concept){
+    var lines = [];
+    lines.push('你是一位圖片生成提示詞企劃助手。請針對以下畫面概念，依序完成「拆解→發展→整合」三個步驟：');
+    lines.push('');
+    lines.push('原始概念描述：' + concept);
+    lines.push('');
+    lines.push('步驟一（拆解）：把這個概念拆解成 3～5 個「次要主題」——構成這個畫面的重要子元素或面向（例如主體細節、場景背景、氛圍情緒、道具搭配、光影效果等，實際主題依概念內容決定，不要硬套固定分類）。');
+    lines.push('步驟二（發展）：針對每一個次要主題，各自發展出更具體、更有畫面感的描述內容（1～2 句話）。');
+    lines.push('步驟三（整合）：把所有次要主題發展出的內容，整合成一段更完整、更有畫面細節的繁體中文概念描述（3～6 句話、語意連貫、不要條列），可以直接取代原本的概念描述。');
+    lines.push('');
+    lines.push('請務必用以下格式輸出，不要有其他多餘文字或說明：');
+    lines.push('【次要主題拆解與發展】');
+    lines.push('1. 主題名稱：發展內容');
+    lines.push('2. 主題名稱：發展內容');
+    lines.push('（實際拆解出幾個主題就列幾點，不限於兩點）');
+    lines.push(DECOMPOSE_MARKER);
+    lines.push('整合後的完整概念描述文字');
+    return lines.join('\n');
+  }
+
+  function parseDecomposeResult(text){
+    var idx = text.indexOf(DECOMPOSE_MARKER);
+    if(idx === -1) return {breakdown: text.trim(), integrated: ''};
+    var breakdown = text.slice(0, idx).replace('【次要主題拆解與發展】', '').trim();
+    var integrated = text.slice(idx + DECOMPOSE_MARKER.length).trim();
+    return {breakdown: breakdown, integrated: integrated};
+  }
+
+  function renderDecomposeError(msg){
+    var report = $('decomposeReport');
+    report.innerHTML = '<div class="bad">' + escapeHtml(msg) + '</div>'
+      + '<button type="button" class="chip" id="decomposeRetryBtn" style="margin-top:8px;">🔄 重試</button>';
+    $('decomposeRetryBtn').addEventListener('click', runDecompose);
+  }
+
+  async function runDecompose(){
+    var report = $('decomposeReport');
+    var resultBox = $('decomposeResult');
+    var concept = ($('f_concept').value || '').trim();
+    if(!concept){ report.innerHTML = '<div class="bad">請先填寫概念描述再進行拆解</div>'; return; }
+
+    var provider = $('aiProvider').value;
+    var model = $('aiModel').value.trim();
+    var apiKey = $('aiKey').value.trim();
+    if(!apiKey){ report.innerHTML = '<div class="bad">請先在下方「送給 AI 優化」的「API 連線設定」填入 API 金鑰</div>'; return; }
+    if(!model){ report.innerHTML = '<div class="bad">請先在下方「API 連線設定」填入模型名稱</div>'; return; }
+    if(!isLatin1(apiKey) || !isLatin1(model)){ report.innerHTML = '<div class="bad">API 金鑰或模型名稱包含不可用的字元，請確認「API 連線設定」內容</div>'; return; }
+
+    var btn = $('decomposeBtn');
+    btn.disabled = true;
+    resultBox.hidden = true;
+    report.innerHTML = '<div class="ok">正在拆解主題並發展內容…</div>';
+    try{
+      persistApiConfig();
+      var text = await callLLM(provider, model, apiKey, decomposePrompt(concept), function(attempt, status, waitSec){
+        report.innerHTML = '<div class="warn">API 回應 ' + status + '（服務商暫時過載／限流），' + waitSec + ' 秒後自動重試（第 ' + attempt + '／2 次）…</div>';
+      });
+      var parsed = parseDecomposeResult(text);
+      if(!parsed.integrated) throw new Error('AI 回應格式異常，沒有找到整合後的概念描述，請重試');
+
+      resultBox.innerHTML = '<strong>次要主題拆解與發展</strong><br>' + escapeHtml(parsed.breakdown).replace(/\n/g, '<br>')
+        + '<hr>'
+        + '<strong>整合後的完整概念描述</strong><br>' + escapeHtml(parsed.integrated);
+      resultBox.hidden = false;
+
+      report.innerHTML = '<div class="ok">拆解與整合完成，請確認下方結果後再套用</div>'
+        + '<button type="button" class="chip" id="applyDecomposeBtn" style="margin-top:8px;">套用整合結果到概念描述</button>';
+      $('applyDecomposeBtn').addEventListener('click', function(){
+        if(concept && !confirm('套用整合結果將覆蓋目前的「概念描述」，確定嗎？')) return;
+        state.fields.concept = parsed.integrated;
+        $('f_concept').value = parsed.integrated;
+        persistState();
+        report.innerHTML = '<div class="ok">已套用整合結果到「概念描述」。</div>';
+      });
+    }catch(err){
+      var msg;
+      if(err.name === 'TimeoutError') msg = '呼叫逾時，這個服務商可能暫時回應較慢，可以重試看看';
+      else if(/ISO-8859-1|non.*code point/i.test(err.message || '')) msg = 'API 金鑰或模型名稱包含不可用的字元，請重新確認「API 連線設定」內容';
+      else if(/Failed to fetch|NetworkError/i.test(err.message || '')) msg = '無法連線到服務商，請檢查網路連線或稍後再試';
+      else msg = err.message;
+      renderDecomposeError(msg);
+    }finally{
+      btn.disabled = false;
+    }
+  }
+
+  $('decomposeBtn').addEventListener('click', runDecompose);
 
   /* ---------- 送給 AI 優化的請求內容：依目標模型分頁附上不同的輸出格式規則 ---------- */
   function aiPromptForTarget(target, v){
