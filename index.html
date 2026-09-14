@@ -1300,6 +1300,22 @@
   var DECOMPOSE_RESULT_RE = /[*#\s]*[【\[]?\s*AI\s*優化結果\s*[】\]]?[*#\s:：]*\n?/i;
   var DECOMPOSE_BREAKDOWN_RE = /[*#\s]*[【\[]?\s*次要主題拆解(?:與發展)?\s*[】\]]?[*#\s:：]*\n?/;
 
+  /* 光靠「請自然融入、不要省略」這種軟性要求，AI 仍常常漏掉長寬比與負面元素（自然語言句子裡沒有
+     --ar/--no 這種強制參數語法可以依附，全靠 AI 自己記得寫進句子）。改成要求 English Prompt 結尾
+     另外附加固定格式的英文短句（"Aspect ratio: ..." / "Avoid: ..."），把這兩項變成獨立、明確、
+     不需要 AI 自己判斷該不該寫進主句的必填項目，大幅降低被自然語言潤飾時順手省略的機率。 */
+  function mandatoryEnglishTrailerRule(v, ratioOpt, neg){
+    var parts = [];
+    if(ratioOpt){
+      parts.push('在 English Prompt 的最後另外加一句固定寫法："Aspect ratio: ' + v.ratio + ', ...".'
+        + '——請把「' + ratioOpt.zh + '」這個長寬比與用途翻譯成英文接在後面（例如 "Aspect ratio: 1:1, square format ideal for social media posts."，請依實際長寬比調整內容），這句話一定要出現，不能只靠前面的描述句隱含帶過、也不能省略。');
+    }
+    if(neg.zh.length){
+      parts.push('再加一句固定寫法："Avoid: ..."——後面接每一項不想出現的元素翻成英文、用逗號分隔（例如 "Avoid: cluttered background, visible human hands, watermarks, text, logos."），這句話一定要出現，「不想出現的元素」每一項都不能省略。');
+    }
+    return parts.join(' ');
+  }
+
   function decomposeAndOptimizePrompt(target, v){
     var tg = TARGETS[target];
     var tagsZh = buildTagsZh(v);
@@ -1310,7 +1326,8 @@
       formatRule = '請用逗號分隔的英文關鍵詞組（不要用完整句子），結尾附上 "--ar ' + (v.ratio || '1:1') + ' --v 6"'
         + (neg.zh.length ? '，並用 "--no ..." 完整列出下面「不想出現的元素」的每一項' : '') + '。';
     } else {
-      formatRule = '請用 2～4 句流暢的英文自然語言描述句（不需要任何參數語法），把風格設定自然地寫進句子裡，不要條列標籤。';
+      formatRule = '請用 2～4 句流暢的英文自然語言描述句（不需要任何參數語法），把風格設定自然地寫進句子裡，不要條列標籤。'
+        + mandatoryEnglishTrailerRule(v, ratioOpt, neg);
     }
 
     var lines = [];
@@ -1414,12 +1431,14 @@
     var tg = TARGETS[target];
     var tagsZh = buildTagsZh(v);
     var neg = buildNegativeList(v);
+    var ratioOpt = optFind(RATIO_OPTIONS, v.ratio);
     var formatRule;
     if(target === 'midjourney'){
       formatRule = '請用逗號分隔的英文關鍵詞組（不要用完整句子），結尾附上 "--ar ' + (v.ratio || '1:1') + ' --v 6"'
         + (neg.zh.length ? '，並用 "--no ..." 完整列出下面「不想出現的元素」的每一項' : '') + '。';
     } else {
-      formatRule = '請用 2～4 句流暢的英文自然語言描述句（不需要任何參數語法），把風格設定自然地寫進句子裡，不要條列標籤。';
+      formatRule = '請用 2～4 句流暢的英文自然語言描述句（不需要任何參數語法），把風格設定自然地寫進句子裡，不要條列標籤。'
+        + mandatoryEnglishTrailerRule(v, ratioOpt, neg);
     }
     var hasExisting = !!(v.existingPrompt && v.existingPrompt.trim());
     var lines = [];
@@ -1434,7 +1453,6 @@
       lines.push('概念（使用者原始描述）：' + v.concept);
     }
     if(tagsZh.length) lines.push('指定風格／構圖／光線／色調／畫質（請自然融入，不要生硬條列，但每一項都要有對應內容出現在最終提示詞裡，不可為了精簡而省略任何一項）：' + tagsZh.join('、'));
-    var ratioOpt = optFind(RATIO_OPTIONS, v.ratio);
     if(ratioOpt) lines.push('長寬比：' + ratioOpt.zh);
     if(neg.zh.length) lines.push('不想出現的元素（也要逐項用明確的英文負面描述表達，例如 no watermark or logo, hands out of frame, uncluttered background，不可略過任何一項）：' + neg.zh.join('、'));
     lines.push('');
