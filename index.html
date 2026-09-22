@@ -346,7 +346,8 @@
       <div class="decompose-box" id="decomposePanel" hidden>
         <p class="field-hint" style="margin:0 0 10px;">會用下方「送給 AI 優化」的 API 連線設定，請 AI 依序完成：① 把概念描述拆解成幾個次要主題 → ② 分別發展每個次要主題更豐富的衍生內容 → ③ 整合成一段更完整的概念描述，並直接套用到上面的「概念描述」欄位。套用後，「🔧 組成提示詞」與「🚀 送給 AI 優化」會自動把這段更豐富的概念，跟風格／構圖／光線／色調／長寬比／負面提示詞等設定組合起來，AI 優化時也會完整保留這些設定，不會漏掉。</p>
         <div class="output-actions">
-          <button class="btn ghost" id="decomposeBtn" type="button">🧩 拆解並發展概念</button>
+          <button class="btn ghost" id="decomposeBtn" type="button">🧩 拆解並發展概念（結果A）</button>
+          <button class="btn ghost" id="decomposeAgainBtn" type="button" hidden>🧩 再次拆解並發展（結果B）</button>
         </div>
         <div id="decomposeReport" class="ai-report" aria-live="polite"></div>
         <div class="decompose-result" id="decomposeResult" hidden></div>
@@ -1037,6 +1038,9 @@
     $('f_existingprompt').value = state.fields.existingPrompt || '';
     $('f_decompose').checked = !!state.fields.decompose;
     $('decomposePanel').hidden = !state.fields.decompose;
+    $('decomposeAgainBtn').hidden = true;
+    $('decomposeResult').hidden = true;
+    $('decomposeReport').innerHTML = '';
     renderCheckboxGroup('qualityGroup', QUALITY_OPTIONS, 'quality');
     renderCheckboxGroup('negativeGroup', NEGATIVE_OPTIONS, 'negativeTags');
   }
@@ -1049,7 +1053,12 @@
     fillSelect($('f_ratio'), RATIO_OPTIONS, '不指定');
 
     $('f_producturl').addEventListener('input', function(){ state.fields.productUrl = this.value; persistState(); });
-    $('f_concept').addEventListener('input', function(){ state.fields.concept = this.value; persistState(); });
+    $('f_concept').addEventListener('input', function(){
+      state.fields.concept = this.value;
+      persistState();
+      // 使用者手動改了概念描述，先前寫回的「結果A」已經不成立，收起「再次拆解（結果B）」按鈕避免誤導。
+      $('decomposeAgainBtn').hidden = true;
+    });
     $('f_style').addEventListener('change', function(){ state.fields.style = this.value; persistState(); });
     $('f_composition').addEventListener('change', function(){ state.fields.composition = this.value; persistState(); });
     $('f_lighting').addEventListener('change', function(){ state.fields.lighting = this.value; persistState(); });
@@ -1419,14 +1428,19 @@
     return {breakdown: breakdown, integrated: integrated};
   }
 
-  function renderDecomposeError(msg){
+  function renderDecomposeError(msg, round){
     var report = $('decomposeReport');
     report.innerHTML = '<div class="bad">' + escapeHtml(msg) + '</div>'
       + '<button type="button" class="chip" id="decomposeRetryBtn" style="margin-top:8px;">🔄 重試</button>';
-    $('decomposeRetryBtn').addEventListener('click', runDecompose);
+    $('decomposeRetryBtn').addEventListener('click', function(){ runDecompose(round); });
   }
 
-  async function runDecompose(){
+  /* round：'A' 是從目前的「概念描述」（可能是原始輸入，也可能是使用者手動編輯過的內容）拆解出第一版
+     整合結果；'B' 是把「結果A」（已經寫回 f_concept 的內容）再拆解發展一次，做第二層更細緻的深化。
+     兩顆按鈕共用同一套拆解/發展/整合邏輯與 prompt，差別只在於「這次要拆解的來源文字是哪個版本」與
+     UI 上顯示的輪次標籤——不需要為 B 另外設計一套 prompt。產出結果A後才會顯示「再次拆解」按鈕；
+     產出結果B後就收起來，只支援兩層，避免無限疊代讓概念描述越滾越長、也對應使用者實際需求。 */
+  async function runDecompose(round){
     var report = $('decomposeReport');
     var resultBox = $('decomposeResult');
     var concept = (state.fields.concept || '').trim();
@@ -1439,7 +1453,7 @@
     if(!model){ report.innerHTML = '<div class="bad">請先在下方「API 連線設定」填入模型名稱</div>'; return; }
     if(!isLatin1(apiKey) || !isLatin1(model)){ report.innerHTML = '<div class="bad">API 金鑰或模型名稱包含不可用的字元，請確認「API 連線設定」內容</div>'; return; }
 
-    var btn = $('decomposeBtn');
+    var btn = round === 'B' ? $('decomposeAgainBtn') : $('decomposeBtn');
     btn.disabled = true;
     resultBox.hidden = true;
     report.innerHTML = '<div class="ok">正在拆解主題並發展內容…</div>';
@@ -1451,19 +1465,25 @@
       var parsed = parseDecomposeResult(text);
 
       if(parsed.breakdown){
-        resultBox.innerHTML = '<strong>次要主題拆解與發展</strong><br>' + escapeHtml(parsed.breakdown).replace(/\n/g, '<br>');
+        resultBox.innerHTML = '<strong>次要主題拆解與發展（結果' + round + '）</strong><br>' + escapeHtml(parsed.breakdown).replace(/\n/g, '<br>');
         resultBox.hidden = false;
       } else {
         resultBox.hidden = true;
       }
 
-      if(concept && parsed.integrated !== concept && !confirm('套用整合結果將覆蓋目前的「概念描述」，確定嗎？')){
-        report.innerHTML = '<div class="warn">已取消套用，整合結果未套用到「概念描述」。</div>';
+      if(concept && parsed.integrated !== concept && !confirm('套用整合結果（結果' + round + '）將覆蓋目前的「概念描述」，確定嗎？')){
+        report.innerHTML = '<div class="warn">已取消套用，整合結果（結果' + round + '）未套用到「概念描述」。</div>';
       } else {
         state.fields.concept = parsed.integrated;
         $('f_concept').value = parsed.integrated;
         persistState();
-        report.innerHTML = '<div class="ok">已將整合後的概念套用到「概念描述」，接著按「🔧 組成提示詞」或「🚀 送給 AI 優化」即可自動帶入風格／構圖／光線／色調／長寬比／負面提示詞等設定繼續使用。</div>';
+        if(round === 'A'){
+          $('decomposeAgainBtn').hidden = false;
+          report.innerHTML = '<div class="ok">已將整合後的概念（結果A）套用到「概念描述」。可以按「🧩 再次拆解並發展（結果B）」再深化一層，或直接按「🔧 組成提示詞」／「🚀 送給 AI 優化」繼續使用。</div>';
+        } else {
+          $('decomposeAgainBtn').hidden = true;
+          report.innerHTML = '<div class="ok">已將再次整合後的概念（結果B）套用到「概念描述」，接著按「🔧 組成提示詞」或「🚀 送給 AI 優化」即可自動帶入風格／構圖／光線／色調／長寬比／負面提示詞等設定繼續使用。</div>';
+        }
       }
     }catch(err){
       var msg;
@@ -1471,13 +1491,14 @@
       else if(/ISO-8859-1|non.*code point/i.test(err.message || '')) msg = 'API 金鑰或模型名稱包含不可用的字元，請重新確認「API 連線設定」內容';
       else if(/Failed to fetch|NetworkError/i.test(err.message || '')) msg = '無法連線到服務商，請檢查網路連線或稍後再試';
       else msg = err.message;
-      renderDecomposeError(msg);
+      renderDecomposeError(msg, round);
     }finally{
       btn.disabled = false;
     }
   }
 
-  $('decomposeBtn').addEventListener('click', runDecompose);
+  $('decomposeBtn').addEventListener('click', function(){ runDecompose('A'); });
+  $('decomposeAgainBtn').addEventListener('click', function(){ runDecompose('B'); });
 
   /* 光靠「請自然融入、不要省略」這種軟性要求，AI 仍常常漏掉長寬比與負面元素（自然語言句子裡沒有
      --ar/--no 這種強制參數語法可以依附，全靠 AI 自己記得寫進句子）。改成要求 English Prompt 結尾
