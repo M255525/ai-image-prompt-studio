@@ -5,3 +5,4 @@ __pycache__/
 
 # Playwright 測試截圖/紀錄
 .playwright-mcp/
+*.pptx
